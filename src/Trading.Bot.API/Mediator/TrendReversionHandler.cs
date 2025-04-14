@@ -24,8 +24,8 @@ public class TrendReversionHandler : IRequestHandler<TrendReversionRequest, IRes
 
             var granularity = file.FileName[(file.FileName.LastIndexOf('_') + 1)..file.FileName.IndexOf('.')];
 
-            var nextCandle = candles.CalcTrendReversion(request.ShortWindow, request.LongWindow, request.StdDev,
-                maxSpread, minGain, riskReward);
+            var nextCandle = candles.CalcTrendReversion(request.ShortWindow, request.MedWindow, request.LongWindow,
+                request.StdDev, maxSpread, minGain, riskReward);
 
             var fileName = $"TrendReversion_{instrument}_{granularity}";
 
@@ -43,6 +43,7 @@ public record TrendReversionRequest : IHttpRequest
 {
     public IFormFileCollection Files { get; set; } = new FormFileCollection();
     public int ShortWindow { get; set; }
+    public int MedWindow { get; set; }
     public int LongWindow { get; set; }
     public double StdDev { get; set; }
     public decimal? MaxSpread { get; set; }

@@ -72,7 +72,7 @@ public class TradeManager : BackgroundService
         }
 
         var calcResults = candles.Select(c => c.CalcTrendReversion(settings.Integers[0],
-            settings.Integers[1], settings.Doubles[0], settings.MaxSpread, settings.MinGain,
+            settings.Integers[1], settings.Integers[2], settings.Doubles[0], settings.MaxSpread, settings.MinGain,
             settings.RiskReward).Last()).ToList();
 
         await UpdateWinningTrades(settings, calcResults.First());
