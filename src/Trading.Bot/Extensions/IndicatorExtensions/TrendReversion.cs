@@ -52,6 +52,17 @@ public static partial class Indicator
                 _ => Signal.None
             };
 
+            result[i].Gain = result[i].Signal switch
+            {
+                Signal.Buy => candles[i].Mid_C - latestLow >= minGain
+                    ? candles[i].Mid_C - latestLow
+                    : minGain,
+                Signal.Sell => latestHigh - candles[i].Mid_C >= minGain
+                    ? latestHigh - candles[i].Mid_C
+                    : minGain,
+                _ => 0
+            };
+
             if (crossedLowerBand)
             {
                 latestLow = candles[i].Mid_C;
@@ -61,8 +72,6 @@ public static partial class Indicator
             {
                 latestHigh = candles[i].Mid_C;
             }
-
-            result[i].Gain = minGain;
 
             result[i].TakeProfit = candles[i].CalcTakeProfit(result[i], riskReward);
 
