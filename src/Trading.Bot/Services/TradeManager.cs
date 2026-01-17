@@ -71,11 +71,9 @@ public class TradeManager : BackgroundService
             return;
         }
 
-        var calcResults = candles.Select(c => c.CalcTrendReversion(settings.Integers[0],
-            settings.Integers[1], settings.Integers[2], settings.Doubles[0], settings.MaxSpread, settings.MinGain,
-            settings.RiskReward).Last()).ToList();
+        var calcResults = candles.Select(c => c.CalcTrendBreakout(settings.Integers[0]).Last()).ToList();
 
-        await UpdateWinningTrades(settings, calcResults.First());
+        await CloseOppositeTrades(settings, calcResults.First());
 
         if (calcResults.All(cr => cr.Signal != Signal.None))
         {
@@ -139,6 +137,8 @@ public class TradeManager : BackgroundService
         var tradeUnits = await GetTradeUnits(settings, indicator);
 
         var trailingStop = settings.TrailingStop ? CalcTrailingStop(indicator, settings.RiskReward) : 0;
+
+        var stopLoss = settings.TrailingStop ? 0 : indicator.StopLoss;
 
         var order = new Order(instrument, tradeUnits, indicator.Signal, indicator.StopLoss, indicator.TakeProfit, trailingStop);
 
@@ -210,6 +210,24 @@ public class TradeManager : BackgroundService
         var openTrades = await _apiService.GetOpenTrades();
 
         return openTrades.All(ot => ot.Instrument != settings.Instrument);
+    }
+
+    private async Task CloseOppositeTrades(TradeSettings settings, IndicatorBase indicator)
+    {
+        if (indicator.Signal is Signal.None) return;
+
+        var openTrade = (await _apiService.GetOpenTrades()).FirstOrDefault(ot => ot.Instrument == settings.Instrument);
+
+        if (openTrade is null) return;
+
+        var shouldCloseTrade = openTrade.InitialUnits > 0
+            ? indicator.Signal is Signal.Sell
+            : indicator.Signal is Signal.Buy;
+
+        if (shouldCloseTrade)
+        {
+            await _apiService.CloseTrade(openTrade.Id);
+        }
     }
 
     private async Task UpdateWinningTrades(TradeSettings settings, IndicatorBase indicator)
