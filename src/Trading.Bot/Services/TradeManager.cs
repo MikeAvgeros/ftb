@@ -7,7 +7,7 @@ public class TradeManager : BackgroundService
     private readonly LiveTradeCache _liveTradeCache;
     private readonly TradeConfiguration _tradeConfiguration;
     private readonly EmailService _emailService;
-    private readonly List<Instrument> _instruments = new();
+    private readonly List<Instrument> _instruments = [];
     private readonly ParallelOptions _options = new();
 
     public TradeManager(ILogger<TradeManager> logger, OandaApiService apiService,
@@ -71,7 +71,7 @@ public class TradeManager : BackgroundService
             return;
         }
 
-        var calcResults = candles.Select(c => c.CalcTrendBreakout(settings.Integers[0]).Last()).ToList();
+        var calcResults = candles.Select(c => c.CalcTrendBreakout(settings.Integers[0], settings.MaxSpread, settings.RiskReward).Last()).ToList();
 
         await CloseOppositeTrades(settings, calcResults.First());
 

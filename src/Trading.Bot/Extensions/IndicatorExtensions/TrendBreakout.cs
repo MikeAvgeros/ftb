@@ -27,17 +27,17 @@ public static partial class Indicator
 
             var bullishBreakout =
                 candles[i].Mid_C > donchianChannel[i].UpperBand &&
-                donchianChannel[i].MidBand > donchianChannel[i - 3].MidBand &&
-                candles.TakeLast(3).All(c => c.Mid_C > donchianChannel[i].MidBand);
+                donchianChannel[i].MidBand > donchianChannel[i - 5].MidBand &&
+                candles.TakeLast(5).All(c => c.Mid_C > donchianChannel[i].MidBand);
 
             var bearishBreakout =
                 candles[i].Mid_C < donchianChannel[i].LowerBand &&
-                donchianChannel[i].MidBand < donchianChannel[i - 3].MidBand &&
-                candles.TakeLast(3).All(c => c.Mid_C < donchianChannel[i].MidBand);
+                donchianChannel[i].MidBand < donchianChannel[i - 5].MidBand &&
+                candles.TakeLast(5).All(c => c.Mid_C < donchianChannel[i].MidBand);
 
             var rangingMarket =
-                (double)(donchianChannel[i].UpperBand - donchianChannel[i].LowerBand) < atr[i].Atr * 1.2 && // small channel width
-                (double)Math.Abs(donchianChannel[i].MidBand - donchianChannel[i - (window / 2)].MidBand) < atr[i].Atr * 0.25; //midline is flat
+                (double)(donchianChannel[i].UpperBand - donchianChannel[i].LowerBand) < atr[i].Atr * 1.25 && // small channel width
+                (double)Math.Abs(donchianChannel[i].MidBand - donchianChannel[i - 10].MidBand) < atr[i].Atr * 0.25; //midline is flat
 
             if (bullishBreakout && !rangingMarket)
             {

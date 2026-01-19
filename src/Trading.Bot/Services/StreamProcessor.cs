@@ -5,8 +5,8 @@ public class StreamProcessor : BackgroundService
     private readonly ILogger<StreamProcessor> _logger;
     private readonly LiveTradeCache _liveTradeCache;
     private readonly TradeConfiguration _tradeConfiguration;
-    private readonly List<string> _instruments = new();
-    private readonly Dictionary<string, DateTime> _lastCandleTimings = new();
+    private readonly List<string> _instruments = [];
+    private readonly Dictionary<string, DateTime> _lastCandleTimings = [];
     private readonly ParallelOptions _options = new();
 
     public StreamProcessor(ILogger<StreamProcessor> logger, LiveTradeCache liveTradeCache, TradeConfiguration tradeConfiguration)
