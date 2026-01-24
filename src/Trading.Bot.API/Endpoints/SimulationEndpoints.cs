@@ -5,10 +5,11 @@ public static class SimulationEndpoints
     public static void MapSimulationEndpoints(this IEndpointRouteBuilder builder)
     {
         builder.MapPost("api/simulation/ma_cross", SimulateMovingAverageCross).DisableAntiforgery();
-        builder.MapPost("api/simulation/mean_reversion", SimulateBollingerBands).DisableAntiforgery();
-        builder.MapPost("api/simulation/trend_reversion", SimulateTrendReversion).DisableAntiforgery();
         builder.MapPost("api/simulation/rsi_ema", SimulateRsiEma).DisableAntiforgery();
         builder.MapPost("api/simulation/macd_ema", SimulateMacdEma).DisableAntiforgery();
+        builder.MapPost("api/simulation/mean_reversion", SimulateBollingerBands).DisableAntiforgery();
+        builder.MapPost("api/simulation/trend_reversion", SimulateTrendReversion).DisableAntiforgery();
+        builder.MapPost("api/simulation/trend_breakout", SimulateTrendBreakout).DisableAntiforgery();
         builder.MapPost("api/simulation/trend_momentum", SimulateBbEma).DisableAntiforgery();
         builder.MapPost("api/simulation/mike_strategy", SimulateMikeStrategy).DisableAntiforgery();
         builder.MapPost("api/simulation/elias_strategy", SimulateEliasStrategy).DisableAntiforgery();
@@ -42,6 +43,19 @@ public static class SimulationEndpoints
 
     private static async Task<IResult> SimulateTrendReversion(ISender sender,
         [AsParameters] TrendReversionRequest request)
+    {
+        try
+        {
+            return await sender.Send(request);
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(ex.Message);
+        }
+    }
+
+    private static async Task<IResult> SimulateTrendBreakout(ISender sender,
+        [AsParameters] TrendBreakoutRequest request)
     {
         try
         {
