@@ -226,6 +226,67 @@ public static class NumericExtensions
         return Math.Sqrt(sumSq / length).NaN2Zero();
     }
 
+    public static double CalcHedgeRatio(this double[] sequenceA, double[] sequenceB)
+    {
+        if (sequenceA is null || sequenceB is null)
+        {
+            return 0.0;
+        }
+
+        if (sequenceA.Length != sequenceB.Length)
+        {
+            return 0.0;
+        }
+
+        var length = sequenceA.Length;
+
+        if (length <= 1)
+        {
+            return 0.0;
+        }
+
+        var averageA = sequenceA.Average();
+        var averageB = sequenceB.Average();
+
+        double numerator = 0;
+        double denominator = 0;
+
+        for (var i = 0; i < length; i++)
+        {
+            numerator += (sequenceA[i] - averageA) * (sequenceB[i] - averageB);
+
+            denominator += (sequenceB[i] - averageB) * (sequenceB[i] - averageB);
+        }
+
+        return denominator == 0 ? 1.0 : numerator / denominator;
+    }
+
+    public static double CalcSpread(this double valueA, double valueB, double hedgeRatio)
+    {
+        return Math.Log(valueA) - (hedgeRatio * Math.Log(valueB));
+    }
+
+    public static double CalcZScore(this double[] sequence, double currentValue)
+    {
+        if (sequence is null)
+        {
+            return 0.0;
+        }
+
+        var length = sequence.Length;
+
+        if (length <= 1)
+        {
+            return 0.0;
+        }
+
+        var average = sequence.Average();
+
+        var std = sequence.CalcStdDev();
+
+        return std == 0 ? 0.0 : (currentValue - average) / std;
+    }
+
     public static double Round(this double value, int decimalPoints)
     {
         var precision = int.Parse("1".PadRight(decimalPoints, '0'));

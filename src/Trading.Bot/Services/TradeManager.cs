@@ -9,6 +9,7 @@ public class TradeManager : BackgroundService
     private readonly EmailService _emailService;
     private readonly List<Instrument> _instruments = [];
     private readonly ParallelOptions _options = new();
+    private readonly ConcurrentDictionary<string, bool> _pairsReady = [];
 
     public TradeManager(ILogger<TradeManager> logger, OandaApiService apiService,
         LiveTradeCache liveTradeCache, TradeConfiguration tradeConfiguration, EmailService emailService)
@@ -19,6 +20,7 @@ public class TradeManager : BackgroundService
         _tradeConfiguration = tradeConfiguration;
         _emailService = emailService;
         _options.MaxDegreeOfParallelism = _tradeConfiguration.TradeSettings.Length;
+        _pairsReady = new ConcurrentDictionary<string, bool>(tradeConfiguration.TradeSettings.ToDictionary(s => s.Instrument, s => false));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,36 +61,30 @@ public class TradeManager : BackgroundService
     {
         var settings = _tradeConfiguration.TradeSettings.First(x => x.Instrument == price.Instrument);
 
-        if (!await NewCandleAvailable(settings, price, stoppingToken) || !GoodTradingTime()) return;
+        if (!await ReadyToTrade(price, settings, stoppingToken)) return;
 
-        var granularities = new[] { settings.MainGranularity }.Concat(settings.OtherGranularities);
-
-        var candles = await Task.WhenAll(granularities.Select(g => _apiService.GetCandles(settings.Instrument, g)));
-
-        if (candles.Length == 0 || candles.Any(c => c.Length == 0))
+        if (!_tradeConfiguration.PairsTrading)
         {
-            _logger.LogInformation("Not placing a trade for {Instrument}, candles not found", settings.Instrument);
+            await CalculateTrade(settings);
             return;
         }
 
-        var calcResults = candles.Select(c => c.CalcTrendBreakout(settings.Integers[0], settings.MaxSpread, settings.RiskReward).Last()).ToList();
+        _pairsReady[price.Instrument] = true;
 
-        await CloseOppositeTrades(settings, calcResults.First());
-
-        if (calcResults.All(cr => cr.Signal != Signal.None))
+        if (_pairsReady.All(p => p.Value == true))
         {
-            await TryPlaceTrade(settings, calcResults.First());
-            return;
-        }
+            foreach (var tradeSettings in _tradeConfiguration.TradeSettings)
+            {
+                _pairsReady[tradeSettings.Instrument] = false;
+            }
 
-        _logger.LogInformation("Not placing a trade for {Instrument} based on the indicator", settings.Instrument);
+            await CalculatePairsTrading(_tradeConfiguration.TradeSettings);
+        }
     }
 
-    private static bool GoodTradingTime()
+    private async Task<bool> ReadyToTrade(LivePrice price, TradeSettings settings, CancellationToken stoppingToken)
     {
-        var date = DateTime.UtcNow;
-
-        return date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+        return await NewCandleAvailable(settings, price, stoppingToken) && GoodTradingTime();
     }
 
     private async Task<bool> NewCandleAvailable(TradeSettings settings, LivePrice price, CancellationToken stoppingToken)
@@ -122,9 +118,78 @@ public class TradeManager : BackgroundService
                    priceTime.Second);
     }
 
-    private async Task TryPlaceTrade(TradeSettings settings, IndicatorBase indicator)
+    private static bool GoodTradingTime()
     {
-        if (!await CanPlaceTrade(settings))
+        var date = DateTime.UtcNow;
+
+        return date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+    }
+
+    private async Task CalculateTrade(TradeSettings settings)
+    {
+        var granularities = new[] { settings.MainGranularity }.Concat(settings.OtherGranularities);
+
+        var candles = await Task.WhenAll(granularities.Select(g =>
+            _apiService.GetCandles(settings.Instrument, g, count: settings.Integers[0] + 20)));
+
+        if (candles.Length == 0 || candles.Any(c => c.Length == 0))
+        {
+            _logger.LogInformation("Not placing a trade for {Instrument}, candles not found", settings.Instrument);
+        }
+
+        var calcResults = candles.Select(c =>
+            c.CalcTrendBreakout(settings.Integers[0], settings.MaxSpread, settings.RiskReward).Last()).ToList();
+
+        var openTrades = await _apiService.GetOpenTrades();
+
+        if (openTrades.FirstOrDefault(ot => ot.Instrument == settings.Instrument) is { } openTrade)
+        {
+            if (await CloseOppositeTrade(calcResults.First(), openTrade) ||
+                await UpdateWinningTrade(calcResults.First(), openTrade))
+            {
+                openTrades = [.. openTrades.Where(ot => ot.Id != openTrade.Id)];
+            }
+        }
+
+        if (calcResults.All(cr => cr.Signal != Signal.None))
+        {
+            await TryPlaceTrade(settings, calcResults.First(), openTrades);
+        }
+
+        _logger.LogInformation("Not placing a trade for {Instrument} based on the indicator", settings.Instrument);
+    }
+
+    private async Task CalculatePairsTrading(TradeSettings[] tradeSettings)
+    {
+        var candles = await Task.WhenAll(tradeSettings.Select(settings =>
+            _apiService.GetCandles(settings.Instrument, settings.MainGranularity, count: settings.Integers[0] + 20)));
+
+        if (candles.Length == 0 || candles.Any(c => c.Length == 0))
+        {
+            _logger.LogInformation("Not placing a trade for {Pairs}, candles not found",
+                string.Join(",", tradeSettings.Select(s => s.Instrument)));
+        }
+
+        var calcResult = candles[0].CalcPairsTrading(candles[1]);
+
+        var openTrades = await _apiService.GetOpenTrades();
+
+        if (ShouldExitPairsTrade(openTrades, calcResult))
+        {
+            foreach (var trade in openTrades)
+            {
+                await _apiService.CloseTrade(trade.Id);
+            }
+
+            openTrades = [];
+        }
+
+        await TryPlacePairsTrade(tradeSettings, calcResult, openTrades);
+    }
+
+    private async Task TryPlaceTrade(TradeSettings settings, IndicatorBase indicator, TradeResponse[] openTrades)
+    {
+        if (openTrades.Any(ot => ot.Instrument == settings.Instrument))
         {
             _logger.LogInformation("Cannot place trade for {Instrument}, already open.", settings.Instrument);
             return;
@@ -169,6 +234,43 @@ public class TradeManager : BackgroundService
         }
     }
 
+    private async Task TryPlacePairsTrade(TradeSettings[] tradeSettings, PairsIndicatorResult indicator, TradeResponse[] openTrades)
+    {
+        if (indicator.Signal is Signal.None || openTrades.Length > 0) return;
+
+        foreach (var settings in tradeSettings)
+        {
+            var instrument = _instruments.FirstOrDefault(i => i.Name == settings.Instrument);
+
+            if (instrument is null) return;
+
+            var tradeUnits = tradeSettings[0] == settings ? indicator.UnitsA : indicator.UnitsB;
+
+            var order = new Order(instrument, tradeUnits, indicator.Signal, 0, 0, 0);
+
+            var ofResponse = _tradeConfiguration.NotifyOnly switch
+            {
+                true => new OrderFilledResponse(),
+                false => await _apiService.PlaceTrade(order)
+            };
+
+            if (ofResponse is null)
+            {
+                _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
+                return;
+            }
+        }
+
+        if (_tradeConfiguration.SendEmail)
+        {
+            await SendEmailNotification(new
+            {
+                Pair = string.Join(",", tradeSettings.Select(s => s.Instrument)),
+                Signal = indicator.Signal.ToString()
+            });
+        }
+    }
+
     private static decimal CalcTrailingStop(IndicatorBase indicator, decimal multiplier)
     {
         return indicator.Gain * multiplier;
@@ -205,20 +307,15 @@ public class TradeManager : BackgroundService
         return perPipLoss / (price.HomeConversion * pipLocation);
     }
 
-    private async Task<bool> CanPlaceTrade(TradeSettings settings)
+    private static bool ShouldExitPairsTrade(TradeResponse[] openTrades, PairsIndicatorResult indicator)
     {
-        var openTrades = await _apiService.GetOpenTrades();
-
-        return openTrades.All(ot => ot.Instrument != settings.Instrument);
+        return openTrades.Length > 0 && (indicator.Exit || openTrades.Any(ot =>
+                DateTime.UtcNow.Subtract(ot.OpenTime) > TimeSpan.FromHours(2)));
     }
 
-    private async Task CloseOppositeTrades(TradeSettings settings, IndicatorBase indicator)
+    private async Task<bool> CloseOppositeTrade(IndicatorBase indicator, TradeResponse openTrade)
     {
-        if (indicator.Signal is Signal.None) return;
-
-        var openTrade = (await _apiService.GetOpenTrades()).FirstOrDefault(ot => ot.Instrument == settings.Instrument);
-
-        if (openTrade is null) return;
+        if (indicator.Signal is Signal.None || openTrade is null) return false;
 
         var shouldCloseTrade = openTrade.InitialUnits > 0
             ? indicator.Signal is Signal.Sell
@@ -227,14 +324,16 @@ public class TradeManager : BackgroundService
         if (shouldCloseTrade)
         {
             await _apiService.CloseTrade(openTrade.Id);
+
+            return true;
         }
+
+        return false;
     }
 
-    private async Task UpdateWinningTrades(TradeSettings settings, IndicatorBase indicator)
+    private async Task<bool> UpdateWinningTrade(IndicatorBase indicator, TradeResponse openTrade)
     {
-        var openTrade = (await _apiService.GetOpenTrades()).FirstOrDefault(ot => ot.Instrument == settings.Instrument);
-
-        if (openTrade is null) return;
+        if (openTrade is null) return false;
 
         var currentValue = openTrade.InitialUnits > 0
             ? indicator.Candle.Ask_C
@@ -249,7 +348,11 @@ public class TradeManager : BackgroundService
             var update = new OrderUpdate(displayPrecision: displayPrecision, trailingStop: trailingStop);
 
             await _apiService.UpdateTrade(update, openTrade.Id);
+
+            return true;
         }
+
+        return false;
     }
 
     private static bool ShouldAddTrailingStop(TradeResponse trade, decimal currentValue)
