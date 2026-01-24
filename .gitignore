@@ -21,6 +21,9 @@ bld/
 # Roslyn cache directories
 *.ide/
 
+# JetBrains IDE
+.idea/
+
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
