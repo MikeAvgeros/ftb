@@ -8,25 +8,23 @@ public static partial class Indicator
 
     public static PairsIndicatorResult CalcPairsTrading(this Candle[] pairA, Candle[] pairB, int window = 200, int tradeRisk = 10)
     {
-        var pricesA = pairA.Select(c => (double)c.Mid_C).ToArray();
+        var pricesA = pairA.TakeLast(window).Select(c => Math.Log((double)c.Mid_C)).ToArray();
 
-        var pricesB = pairB.Select(c => (double)c.Mid_C).ToArray();
+        var pricesB = pairB.TakeLast(window).Select(c => Math.Log((double)c.Mid_C)).ToArray();
 
         var hedgeRatio = pricesA.CalcHedgeRatio(pricesB);
 
-        var spreads = pricesA.Select((p, i) => p.CalcSpread(pricesB[i], hedgeRatio));
+        var spreads = pricesA.Select((p, i) => p.CalcSpread(pricesB[i], hedgeRatio)).ToArray();
 
-        var spreadHistory = spreads.TakeLast(window).ToArray();
+        var zScore = spreads.CalcZScore(spreads.Last());
 
-        var zScore = spreadHistory.CalcZScore(spreads.Last());
-
-        var spreadStd = spreadHistory.CalcStdDev();
+        var spreadStd = spreads.CalcStdDev();
 
         var worstSpreadMove = Math.Abs(StopZ - EntryZ) * spreadStd;
 
-        var unitsA = Math.Floor(tradeRisk / worstSpreadMove);
+        var unitsA = tradeRisk / ((double)pairA.Last().Mid_C * worstSpreadMove);
 
-        var unitsB = Math.Floor(unitsA * hedgeRatio);
+        var unitsB = unitsA * hedgeRatio;
 
         var result = new PairsIndicatorResult
         {

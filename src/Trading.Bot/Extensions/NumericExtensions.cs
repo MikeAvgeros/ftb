@@ -143,7 +143,7 @@ public static class NumericExtensions
 
         double sumY = 0;
 
-        double sumXY = 0;
+        double sumXy = 0;
 
         double sumX2 = 0;
 
@@ -153,12 +153,12 @@ public static class NumericExtensions
 
             sumY += sequence[i];
 
-            sumXY += i * sequence[i];
+            sumXy += i * sequence[i];
 
             sumX2 += i * i;
         }
 
-        var slope = (length * sumXY - sumX * sumY) / (length * sumX2 - sumX * sumX);
+        var slope = (length * sumXy - sumX * sumY) / (length * sumX2 - sumX * sumX);
 
         var intercept = (sumY - slope * sumX) / length;
 
@@ -263,7 +263,7 @@ public static class NumericExtensions
 
     public static double CalcSpread(this double valueA, double valueB, double hedgeRatio)
     {
-        return Math.Log(valueA) - (hedgeRatio * Math.Log(valueB));
+        return valueA - hedgeRatio * valueB;
     }
 
     public static double CalcZScore(this double[] sequence, double currentValue)
@@ -294,7 +294,7 @@ public static class NumericExtensions
         return Math.Floor(value * precision) / precision;
     }
 
-    public static double NaN2Zero(this double value)
+    private static double NaN2Zero(this double value)
         => double.IsNaN(value)
             ? 0.0
             : value;

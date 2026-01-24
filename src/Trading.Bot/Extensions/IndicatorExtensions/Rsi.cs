@@ -34,9 +34,9 @@ public static partial class Indicator
             lastValue = value;
         }
 
-        var gains_rma = gains.CalcRma(window).ToArray();
+        var gainsRma = gains.CalcRma(window).ToArray();
 
-        var losses_rma = losses.CalcRma(window).ToArray();
+        var lossesRma = losses.CalcRma(window).ToArray();
 
         var result = new RsiResult[length];
 
@@ -46,9 +46,9 @@ public static partial class Indicator
 
             result[i].Candle = candles[i];
 
-            result[i].AverageGain = gains_rma[i];
+            result[i].AverageGain = gainsRma[i];
 
-            result[i].AverageLoss = losses_rma[i];
+            result[i].AverageLoss = lossesRma[i];
 
             if (i > 0)
             {

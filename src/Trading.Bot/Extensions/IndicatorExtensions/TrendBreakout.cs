@@ -7,7 +7,7 @@ public static partial class Indicator
     {
         var donchianChannel = candles.CalcDonchianChannel(window);
 
-        var atr = candles.CalcAtr(14);
+        var atr = candles.CalcAtr();
 
         var length = candles.Length;
 

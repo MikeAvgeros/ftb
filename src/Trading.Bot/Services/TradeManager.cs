@@ -9,7 +9,7 @@ public class TradeManager : BackgroundService
     private readonly EmailService _emailService;
     private readonly List<Instrument> _instruments = [];
     private readonly ParallelOptions _options = new();
-    private readonly ConcurrentDictionary<string, bool> _pairsReady = [];
+    private readonly ConcurrentDictionary<string, bool> _pairsReady;
 
     public TradeManager(ILogger<TradeManager> logger, OandaApiService apiService,
         LiveTradeCache liveTradeCache, TradeConfiguration tradeConfiguration, EmailService emailService)
@@ -20,7 +20,8 @@ public class TradeManager : BackgroundService
         _tradeConfiguration = tradeConfiguration;
         _emailService = emailService;
         _options.MaxDegreeOfParallelism = _tradeConfiguration.TradeSettings.Length;
-        _pairsReady = new ConcurrentDictionary<string, bool>(tradeConfiguration.TradeSettings.ToDictionary(s => s.Instrument, s => false));
+        _pairsReady = new ConcurrentDictionary<string, bool>(
+            tradeConfiguration.TradeSettings.ToDictionary(s => s.Instrument, _ => false));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,7 +72,7 @@ public class TradeManager : BackgroundService
 
         _pairsReady[price.Instrument] = true;
 
-        if (_pairsReady.All(p => p.Value == true))
+        if (_pairsReady.All(p => p.Value))
         {
             foreach (var tradeSettings in _tradeConfiguration.TradeSettings)
             {
@@ -194,7 +195,38 @@ public class TradeManager : BackgroundService
             _logger.LogInformation("Cannot place trade for {Instrument}, already open.", settings.Instrument);
             return;
         }
+        
+        await ExecuteTrade(settings, indicator);
+        
+        if (_tradeConfiguration.SendEmail)
+        {
+            await SendEmailNotification(new
+            {
+                settings.Instrument,
+                Signal = indicator.Signal.ToString()
+            });
+        }
+    }
 
+    private async Task TryPlacePairsTrade(TradeSettings[] tradeSettings, PairsIndicatorResult indicator, 
+        TradeResponse[] openTrades)
+    {
+        if (indicator.Signal is Signal.None || openTrades.Length > 0) return;
+
+        await Task.WhenAll(tradeSettings.Select(settings => ExecuteTrade(settings, indicator)));
+
+        if (_tradeConfiguration.SendEmail)
+        {
+            await SendEmailNotification(new
+            {
+                Pair = string.Join(",", tradeSettings.Select(s => s.Instrument)),
+                Signal = indicator.Signal.ToString()
+            });
+        }
+    }
+    
+    private async Task ExecuteTrade(TradeSettings settings, IndicatorBase indicator)
+    {
         var instrument = _instruments.FirstOrDefault(i => i.Name == settings.Instrument);
 
         if (instrument is null) return;
@@ -205,7 +237,7 @@ public class TradeManager : BackgroundService
 
         var stopLoss = settings.TrailingStop ? 0 : indicator.StopLoss;
 
-        var order = new Order(instrument, tradeUnits, indicator.Signal, indicator.StopLoss, indicator.TakeProfit, trailingStop);
+        var order = new Order(instrument, tradeUnits, indicator.Signal, stopLoss, indicator.TakeProfit, trailingStop);
 
         var ofResponse = _tradeConfiguration.NotifyOnly switch
         {
@@ -216,58 +248,30 @@ public class TradeManager : BackgroundService
         if (ofResponse is null)
         {
             _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
-            return;
-        }
-
-        if (_tradeConfiguration.SendEmail)
-        {
-            await SendEmailNotification(new
-            {
-                settings.Instrument,
-                Signal = indicator.Signal.ToString(),
-                Units = ofResponse.TradeOpened?.Units ?? Math.Round(tradeUnits, instrument.TradeUnitsPrecision),
-                Price = ofResponse.TradeOpened?.Price ?? indicator.Candle.Mid_C,
-                TakeProfit = order.TakeProfitOnFill?.Price ?? 0,
-                StopLoss = order.StopLossOnFill?.Price ?? 0,
-                TrailingStop = order.TrailingStopLossOnFill?.Distance ?? 0
-            });
         }
     }
 
-    private async Task TryPlacePairsTrade(TradeSettings[] tradeSettings, PairsIndicatorResult indicator, TradeResponse[] openTrades)
+    private async Task ExecuteTrade(TradeSettings settings, PairsIndicatorResult indicator)
     {
-        if (indicator.Signal is Signal.None || openTrades.Length > 0) return;
+        var instrument = _instruments.FirstOrDefault(i => i.Name == settings.Instrument);
 
-        foreach (var settings in tradeSettings)
+        if (instrument is null) return;
+
+        var tradeUnits = _tradeConfiguration.TradeSettings[0] == settings 
+            ? indicator.UnitsA 
+            : indicator.UnitsB;
+
+        var order = new Order(instrument, tradeUnits, indicator.Signal);
+
+        var ofResponse = _tradeConfiguration.NotifyOnly switch
         {
-            var instrument = _instruments.FirstOrDefault(i => i.Name == settings.Instrument);
+            true => new OrderFilledResponse(),
+            false => await _apiService.PlaceTrade(order)
+        };
 
-            if (instrument is null) return;
-
-            var tradeUnits = tradeSettings[0] == settings ? indicator.UnitsA : indicator.UnitsB;
-
-            var order = new Order(instrument, tradeUnits, indicator.Signal, 0, 0, 0);
-
-            var ofResponse = _tradeConfiguration.NotifyOnly switch
-            {
-                true => new OrderFilledResponse(),
-                false => await _apiService.PlaceTrade(order)
-            };
-
-            if (ofResponse is null)
-            {
-                _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
-                return;
-            }
-        }
-
-        if (_tradeConfiguration.SendEmail)
+        if (ofResponse is null)
         {
-            await SendEmailNotification(new
-            {
-                Pair = string.Join(",", tradeSettings.Select(s => s.Instrument)),
-                Signal = indicator.Signal.ToString()
-            });
+            _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
         }
     }
 
@@ -298,7 +302,8 @@ public class TradeManager : BackgroundService
 
         if (price is null) return 0;
 
-        var pipLocation = _instruments.FirstOrDefault(i => i.Name == settings.Instrument)?.PipLocation ?? 1;
+        var pipLocation = _instruments.FirstOrDefault(i => 
+            i.Name == settings.Instrument)?.PipLocation ?? 1;
 
         var numPips = indicator.Loss / pipLocation;
 
@@ -321,14 +326,11 @@ public class TradeManager : BackgroundService
             ? indicator.Signal is Signal.Sell
             : indicator.Signal is Signal.Buy;
 
-        if (shouldCloseTrade)
-        {
-            await _apiService.CloseTrade(openTrade.Id);
+        if (!shouldCloseTrade) return false;
+        
+        await _apiService.CloseTrade(openTrade.Id);
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     private async Task<bool> UpdateWinningTrade(IndicatorBase indicator, TradeResponse openTrade)
@@ -339,20 +341,17 @@ public class TradeManager : BackgroundService
             ? indicator.Candle.Ask_C
             : indicator.Candle.Bid_C;
 
-        if (ShouldAddTrailingStop(openTrade, currentValue))
-        {
-            var displayPrecision = _instruments.First(i => i.Name == openTrade.Instrument).DisplayPrecision;
+        if (!ShouldAddTrailingStop(openTrade, currentValue)) return false;
+        
+        var displayPrecision = _instruments.First(i => i.Name == openTrade.Instrument).DisplayPrecision;
 
-            var trailingStop = Math.Abs(currentValue - openTrade.Price) - indicator.Candle.Spread;
+        var trailingStop = Math.Abs(currentValue - openTrade.Price) - indicator.Candle.Spread;
 
-            var update = new OrderUpdate(displayPrecision: displayPrecision, trailingStop: trailingStop);
+        var update = new OrderUpdate(displayPrecision: displayPrecision, trailingStop: trailingStop);
 
-            await _apiService.UpdateTrade(update, openTrade.Id);
+        await _apiService.UpdateTrade(update, openTrade.Id);
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     private static bool ShouldAddTrailingStop(TradeResponse trade, decimal currentValue)

@@ -12,7 +12,7 @@ public static class CandlePatternExtensions
     private const decimal TweezerBody = 15;
     private const decimal TweezerTopBody = 40;
     private const decimal TweezerBottomBody = 60;
-    private const decimal TweezerHLPercentageDifference = 0.01m;
+    private const decimal TweezerHlPercentageDifference = 0.01m;
     private const decimal MorningStarPrev2Body = 90;
     private const decimal MorningStarPrevBody = 10;
 
@@ -63,8 +63,8 @@ public static class CandlePatternExtensions
 
         return Math.Abs(bodyChange) < TweezerBody && candle.Direction == -1 &&
                candle.Direction != prevCandle.Direction &&
-               Math.Abs(lowChange) < TweezerHLPercentageDifference &&
-               Math.Abs(highChange) < TweezerHLPercentageDifference &&
+               Math.Abs(lowChange) < TweezerHlPercentageDifference &&
+               Math.Abs(highChange) < TweezerHlPercentageDifference &&
                candle.BodyTopPercentage < TweezerTopBody;
     }
 
@@ -80,8 +80,8 @@ public static class CandlePatternExtensions
 
         return Math.Abs(bodyChange) < TweezerBody && candle.Direction == 1 &&
                candle.Direction != prevCandle.Direction &&
-               Math.Abs(lowChange) < TweezerHLPercentageDifference &&
-               Math.Abs(highChange) < TweezerHLPercentageDifference &&
+               Math.Abs(lowChange) < TweezerHlPercentageDifference &&
+               Math.Abs(highChange) < TweezerHlPercentageDifference &&
                candle.BodyBottomPercentage > TweezerBottomBody;
     }
 
