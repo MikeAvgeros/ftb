@@ -2,7 +2,7 @@
 
 public static partial class Indicator
 {
-    public static DolchianChannelResult[] CalcDonchianChannel(this Candle[] candles, int window = 20)
+    public static DonchianChannelResult[] CalcDonchianChannel(this Candle[] candles, int window = 20)
     {
         var highs = candles.Select(c => c.Mid_H).ToArray();
 
@@ -10,11 +10,11 @@ public static partial class Indicator
 
         var length = candles.Length;
 
-        var result = new DolchianChannelResult[length];
+        var result = new DonchianChannelResult[length];
 
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new DolchianChannelResult();
+            result[i] ??= new DonchianChannelResult();
 
             result[i].Candle = candles[i];
 

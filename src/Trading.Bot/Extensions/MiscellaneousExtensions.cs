@@ -30,7 +30,7 @@ public static class MiscellaneousExtensions
         return (int)statusCode >= 200 && (int)statusCode <= 299;
     }
 
-    public static decimal CalcTakeProfit(this Candle candle, IndicatorBase result, decimal riskReward)
+    public static decimal CalcTakeProfit(this Candle candle, IndicatorResult result, decimal riskReward)
     {
         return result.Signal switch
         {
@@ -40,7 +40,7 @@ public static class MiscellaneousExtensions
         };
     }
 
-    public static decimal CalcStopLoss(this Candle candle, IndicatorBase result)
+    public static decimal CalcStopLoss(this Candle candle, IndicatorResult result)
     {
         return result.Signal switch
         {

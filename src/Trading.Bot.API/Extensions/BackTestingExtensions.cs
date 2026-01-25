@@ -86,11 +86,12 @@ public static class BackTestingExtensions
         return memoryStream.ToArray();
     }
 
-    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this IndicatorResult[] indicator, string fileName, int tradeRisk, decimal riskReward, bool updateTrade = false)
+    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this IndicatorResult[] indicator, 
+        string fileName, int tradeRisk, decimal riskReward, bool updateTrade = false)
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
 
-        var tradingSim = SimulateTrade(indicator.Cast<IndicatorBase>().ToArray(), tradeRisk, riskReward, updateTrade);
+        var tradingSim = SimulateTrade(indicator.ToArray(), tradeRisk, riskReward, updateTrade);
 
         fileData.Add(new FileData<IEnumerable<object>>(
             $"{fileName}.csv", indicator.Where(ma => ma.Signal != Signal.None)));
@@ -136,7 +137,8 @@ public static class BackTestingExtensions
         return csv.GetRecords<T>().ToArray();
     }
 
-    private static (TradeResult[] Result, SimulationSummary Summary) SimulateTrade(IndicatorBase[] indicators, int tradeRisk, decimal riskReward, bool updateTrade)
+    private static (TradeResult[] Result, SimulationSummary Summary) SimulateTrade(IndicatorResult[] indicators, 
+        int tradeRisk, decimal riskReward, bool updateTrade)
     {
         var length = indicators.Length;
 
@@ -181,20 +183,21 @@ public static class BackTestingExtensions
         return (closedTrades.ToArray(), summary);
     }
 
-    private static void UpdateUnrealisedPl(IndicatorBase indicator, List<TradeResult> openTrades)
+    private static void UpdateUnrealisedPl(IndicatorResult indicator, List<TradeResult> openTrades)
     {
         foreach (var trade in openTrades)
         {
-            trade.UnrealisedPL = trade.Signal switch
+            trade.UnrealisedPl = trade.Signal switch
             {
                 Signal.Buy => indicator.Candle.Bid_C - trade.TriggerPrice,
                 Signal.Sell => trade.TriggerPrice - indicator.Candle.Ask_C,
-                _ => trade.UnrealisedPL
+                _ => trade.UnrealisedPl
             };
         }
     }
 
-    private static void UpdateTrades(IndicatorBase indicator, bool updateTrade, List<TradeResult> openTrades, List<TradeResult> closedTrades)
+    private static void UpdateTrades(IndicatorResult indicator, bool updateTrade, List<TradeResult> openTrades, 
+        List<TradeResult> closedTrades)
     {
         foreach (var trade in openTrades)
         {
@@ -213,7 +216,7 @@ public static class BackTestingExtensions
         }
     }
 
-    private static void UpdateTrade(TradeResult trade, IndicatorBase indicator)
+    private static void UpdateTrade(TradeResult trade, IndicatorResult indicator)
     {
         if (trade.Signal == Signal.Buy)
         {
@@ -252,7 +255,7 @@ public static class BackTestingExtensions
         }
     }
 
-    private static bool ShouldUpdateStopLoss(bool updateTrade, TradeResult trade, IndicatorBase indicator)
+    private static bool ShouldUpdateStopLoss(bool updateTrade, TradeResult trade, IndicatorResult indicator)
     {
         var priceList = new List<decimal> { trade.TriggerPrice, trade.TakeProfit };
 
@@ -306,7 +309,8 @@ public static class BackTestingExtensions
         return Math.Abs(triggerPrice - takeProfit) / ((triggerPrice + takeProfit) / 2) * 100;
     }
 
-    private static SimulationSummary CalcSimSummary(IndicatorBase[] indicators, int tradeRisk, decimal riskReward, List<TradeResult> closedTrades)
+    private static SimulationSummary CalcSimSummary(IndicatorResult[] indicators, int tradeRisk, decimal riskReward, 
+        List<TradeResult> closedTrades)
     {
         var summary = new SimulationSummary
         {

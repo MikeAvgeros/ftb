@@ -19,8 +19,6 @@ public static partial class Indicator
 
             result[i].Candle = candles[i];
 
-            result[i].Signal = Signal.None;
-
             if (i < window) continue;
 
             if (candles[i].Spread > maxSpread) continue;
@@ -36,8 +34,8 @@ public static partial class Indicator
                 candles.TakeLast(5).All(c => c.Mid_C < donchianChannel[i].MidBand);
 
             var rangingMarket =
-                (double)(donchianChannel[i].UpperBand - donchianChannel[i].LowerBand) < atr[i].Atr * 1.25 && // small channel width
-                (double)Math.Abs(donchianChannel[i].MidBand - donchianChannel[i - 10].MidBand) < atr[i].Atr * 0.25; //midline is flat
+                (double)(donchianChannel[i].UpperBand - donchianChannel[i].LowerBand) < atr[i].Atr * 1.25 &&
+                (double)Math.Abs(donchianChannel[i].MidBand - donchianChannel[i - 10].MidBand) < atr[i].Atr * 0.25;
 
             if (bullishBreakout && !rangingMarket)
             {

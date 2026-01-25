@@ -1,6 +1,6 @@
 ﻿namespace Trading.Bot.Models.Indicators;
 
-public class RsiResult : IndicatorBase
+public class RsiResult : IndicatorResult
 {
     public double AverageGain { get; set; }
     public double AverageLoss { get; set; }

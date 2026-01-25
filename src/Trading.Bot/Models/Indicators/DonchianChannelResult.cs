@@ -1,6 +1,6 @@
 ﻿namespace Trading.Bot.Models.Indicators;
 
-public class DolchianChannelResult : IndicatorBase
+public class DonchianChannelResult : IndicatorResult
 {
     public decimal UpperBand { get; set; }
     public decimal LowerBand { get; set; }
