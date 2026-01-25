@@ -91,7 +91,26 @@ public static class BackTestingExtensions
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
 
-        var tradingSim = SimulateTrade(indicator.ToArray(), tradeRisk, riskReward, updateTrade);
+        var tradingSim = SimulateTrade(indicator, tradeRisk, riskReward, updateTrade);
+
+        fileData.Add(new FileData<IEnumerable<object>>(
+            $"{fileName}.csv", indicator.Where(ma => ma.Signal != Signal.None)));
+
+        fileData.Add(new FileData<IEnumerable<object>>(
+            $"{fileName}_Simulation.csv", tradingSim.Result));
+
+        fileData.Add(new FileData<IEnumerable<object>>(
+            $"{fileName}_Summary.csv", [tradingSim.Summary]));
+
+        return fileData;
+    }
+    
+    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this PairsIndicatorResult[] indicator, 
+        string fileName, int tradeRisk)
+    {
+        var fileData = new List<FileData<IEnumerable<object>>>();
+
+        var tradingSim = SimulatePairsTrade(indicator, tradeRisk);
 
         fileData.Add(new FileData<IEnumerable<object>>(
             $"{fileName}.csv", indicator.Where(ma => ma.Signal != Signal.None)));
@@ -182,6 +201,46 @@ public static class BackTestingExtensions
 
         return (closedTrades.ToArray(), summary);
     }
+    
+    private static (PairTradeResult[] Result, SimulationSummary Summary) SimulatePairsTrade(
+        PairsIndicatorResult[] indicators, int tradeRisk)
+    {
+        var length = indicators.Length;
+
+        var openTrades = new List<PairTradeResult>();
+
+        var closedTrades = new List<PairTradeResult>();
+
+        for (var i = 0; i < length; i++)
+        {
+            if (indicators[i].Signal != Signal.None && openTrades.Count == 0)
+            {
+                openTrades.Add(new PairTradeResult
+                {
+                    Running = true,
+                    CandleASignal = indicators[i].Signal == Signal.Buy
+                        ? Signal.Buy
+                        : Signal.Sell,
+                    CandleBSignal = indicators[i].Signal == Signal.Buy
+                        ? Signal.Sell
+                        : Signal.Buy,
+                    StartTime = indicators[i].CandleA.Time,
+                    EndTime = indicators[i].CandleA.Time,
+                    Result = 0
+                });
+
+                continue;
+            }
+            
+            UpdatePairsTrade(indicators[i], openTrades, closedTrades);
+            
+            openTrades.RemoveAll(ot => !ot.Running);
+        }
+        
+        var summary = CalcPairsSimSummary(indicators, tradeRisk, closedTrades);
+
+        return (closedTrades.ToArray(), summary);
+    }
 
     private static void UpdateUnrealisedPl(IndicatorResult indicator, List<TradeResult> openTrades)
     {
@@ -210,6 +269,24 @@ public static class BackTestingExtensions
                     : trade.TriggerPrice - indicator.Candle.Spread;
             }
 
+            if (trade.Running) continue;
+
+            closedTrades.Add(trade);
+        }
+    }
+    
+    private static void UpdatePairsTrade(PairsIndicatorResult indicator, List<PairTradeResult> openTrades, 
+        List<PairTradeResult> closedTrades)
+    {
+        foreach (var trade in openTrades)
+        {
+            if (indicator.TakeProfit || indicator.StopLoss)
+            {
+                trade.Running = false;
+                trade.EndTime = indicator.CandleA.Time;
+                trade.Result = indicator.TakeProfit ? 1 : -1;
+            }
+            
             if (trade.Running) continue;
 
             closedTrades.Add(trade);
@@ -340,6 +417,28 @@ public static class BackTestingExtensions
         var winResultSum = Math.Round(closedTrades.Where(t => t.Result > 0).Sum(t => t.Result));
 
         summary.Balance = (double)Math.Round(winResultSum * tradeRisk * riskReward - summary.Losses * tradeRisk, 2);
+
+        return summary;
+    }
+    
+    private static SimulationSummary CalcPairsSimSummary(PairsIndicatorResult[] indicators, int tradeRisk, 
+        List<PairTradeResult> closedTrades)
+    {
+        var summary = new SimulationSummary
+        {
+            Days = indicators.Last().CandleA.Time.Subtract(indicators.First().CandleA.Time).Days,
+            Candles = indicators.Length,
+            Trades = closedTrades.Count,
+            Wins = closedTrades.Count(t => t.Result == 1),
+            Losses = closedTrades.Count(t => t.Result == -1),
+            TradeRisk = tradeRisk
+        };
+
+        summary.WinRate = Math.Round((double)summary.Wins * 100 / (summary.Trades - summary.Unknown), 2);
+
+        var winResultSum = Math.Round(closedTrades.Where(t => t.Result == 1).Sum(t => t.Result));
+
+        summary.Balance = (double)Math.Round(winResultSum * tradeRisk - summary.Losses * tradeRisk, 2);
 
         return summary;
     }

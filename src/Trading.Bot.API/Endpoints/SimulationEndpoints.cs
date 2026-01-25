@@ -13,6 +13,7 @@ public static class SimulationEndpoints
         builder.MapPost("api/simulation/trend_momentum", SimulateBbEma).DisableAntiforgery();
         builder.MapPost("api/simulation/mike_strategy", SimulateMikeStrategy).DisableAntiforgery();
         builder.MapPost("api/simulation/elias_strategy", SimulateEliasStrategy).DisableAntiforgery();
+        builder.MapPost("api/simulation/pairs_trading", SimulatePairsTrading).DisableAntiforgery();
     }
 
     private static async Task<IResult> SimulateMovingAverageCross(ISender sender,
@@ -121,6 +122,19 @@ public static class SimulationEndpoints
 
     private static async Task<IResult> SimulateEliasStrategy(ISender sender,
         [AsParameters] EliasStrategyRequest request)
+    {
+        try
+        {
+            return await sender.Send(request);
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(ex.Message);
+        }
+    }
+    
+    private static async Task<IResult> SimulatePairsTrading(ISender sender,
+        [AsParameters] PairsTradingRequest request)
     {
         try
         {
