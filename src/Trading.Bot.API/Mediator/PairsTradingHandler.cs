@@ -18,7 +18,7 @@ public class PairsTradingHandler : IRequestHandler<PairsTradingRequest, IResult>
         
         if (pairA.Length == 0 || pairB.Length == 0) throw new ArgumentException("Candles are required.");
         
-        var result = pairA.CalcPairsTrading(pairA, request.Window, tradeRisk, maxSpread);
+        var result = pairA.CalcReturnSpreadZScore(pairB, request.Window, maxSpread);
 
         var instruments = string.Join("", 
             request.Files[0].FileName[..request.Files[0].FileName.LastIndexOf('_')].Concat(

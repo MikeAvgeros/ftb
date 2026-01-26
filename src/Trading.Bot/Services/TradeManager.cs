@@ -173,7 +173,13 @@ public class TradeManager : BackgroundService
                 string.Join(",", tradeSettings.Select(s => s.Instrument)));
         }
 
-        var calcResult = candles[0].CalcPairsTrading(candles[1], tradeRisk: _tradeConfiguration.TradeRisk).Last();
+        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1]).Last();
+
+        if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
+        {
+            calcResult.UnitsA = await GetTradeUnits(tradeSettings.First(), candles[0], 1.5m);
+            calcResult.UnitsB = await GetTradeUnits(tradeSettings.Last(), candles[1], 1.5m);
+        }
 
         var openTrades = await _apiService.GetOpenTrades();
 
@@ -215,7 +221,7 @@ public class TradeManager : BackgroundService
         if (indicator.Signal is Signal.None || openTrades.Length > 0) return;
         
         var instrumentsFound = _instruments.All(i => 
-            tradeSettings.Any(t => t.Instrument == i.DisplayName));
+            tradeSettings.Any(t => t.Instrument == i.Name));
 
         if (!instrumentsFound)
         {
@@ -225,7 +231,7 @@ public class TradeManager : BackgroundService
         }
 
         await Task.WhenAll(tradeSettings.Select(settings => ExecuteTrade(settings, indicator, 
-            _instruments.First(i => i.DisplayName == settings.Instrument))));
+            _instruments.First(i => i.Name == settings.Instrument))));
     }
     
     private async Task ExecuteTrade(TradeSettings settings, IndicatorResult indicator, Instrument instrument)
@@ -262,11 +268,17 @@ public class TradeManager : BackgroundService
 
     private async Task ExecuteTrade(TradeSettings settings, PairsIndicatorResult indicator, Instrument instrument)
     {
-        var tradeUnits = _tradeConfiguration.TradeSettings[0] == settings 
+        var isPrimary = _tradeConfiguration.TradeSettings[0].Instrument == settings.Instrument;
+        
+        var tradeUnits = isPrimary 
             ? indicator.UnitsA 
             : indicator.UnitsB;
+        
+        var signal = isPrimary
+            ? indicator.Signal
+            : GetOppositeSignal(indicator.Signal);
 
-        var order = new Order(instrument, tradeUnits, indicator.Signal);
+        var order = new Order(instrument, tradeUnits, signal);
 
         var ofResponse = _tradeConfiguration.NotifyOnly switch
         {
@@ -293,6 +305,11 @@ public class TradeManager : BackgroundService
     private static decimal CalcTrailingStop(IndicatorResult indicator, decimal multiplier)
     {
         return indicator.Gain * multiplier;
+    }
+    
+    private static Signal GetOppositeSignal(Signal signal)
+    {
+        return signal is Signal.Buy ? Signal.Sell : Signal.Buy;
     }
 
     private async Task SendEmailNotification(object emailBody)
@@ -321,6 +338,26 @@ public class TradeManager : BackgroundService
             i.Name == settings.Instrument)?.PipLocation ?? 1;
 
         var numPips = indicator.Loss / pipLocation;
+
+        var perPipLoss = _tradeConfiguration.TradeRisk / numPips;
+
+        return perPipLoss / (price.HomeConversion * pipLocation);
+    }
+    
+    private async Task<decimal> GetTradeUnits(TradeSettings settings, Candle[] candles, decimal multiplier)
+    {
+        var price = (await _apiService.GetPrices(settings.Instrument)).FirstOrDefault();
+
+        if (price is null) return 0;
+        
+        var atrResult = candles.CalcAtr();
+        
+        var stopDistance = (decimal)atrResult.Last().Atr * multiplier;
+
+        var pipLocation = _instruments.FirstOrDefault(i => 
+            i.Name == settings.Instrument)?.PipLocation ?? 1;
+
+        var numPips = stopDistance / pipLocation;
 
         var perPipLoss = _tradeConfiguration.TradeRisk / numPips;
 
