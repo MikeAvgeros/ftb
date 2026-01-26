@@ -86,7 +86,7 @@ public static class BackTestingExtensions
         return memoryStream.ToArray();
     }
 
-    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this IndicatorResult[] indicator, 
+    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this IndicatorResult[] indicator,
         string fileName, int tradeRisk, decimal riskReward, bool updateTrade = false)
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
@@ -104,8 +104,8 @@ public static class BackTestingExtensions
 
         return fileData;
     }
-    
-    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this PairsIndicatorResult[] indicator, 
+
+    public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this PairsIndicatorResult[] indicator,
         string fileName, int tradeRisk)
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
@@ -156,7 +156,7 @@ public static class BackTestingExtensions
         return csv.GetRecords<T>().ToArray();
     }
 
-    private static (TradeResult[] Result, SimulationSummary Summary) SimulateTrade(IndicatorResult[] indicators, 
+    private static (TradeResult[] Result, SimulationSummary Summary) SimulateTrade(IndicatorResult[] indicators,
         int tradeRisk, decimal riskReward, bool updateTrade)
     {
         var length = indicators.Length;
@@ -201,7 +201,7 @@ public static class BackTestingExtensions
 
         return (closedTrades.ToArray(), summary);
     }
-    
+
     private static (PairTradeResult[] Result, SimulationSummary Summary) SimulatePairsTrade(
         PairsIndicatorResult[] indicators, int tradeRisk)
     {
@@ -231,12 +231,12 @@ public static class BackTestingExtensions
 
                 continue;
             }
-            
+
             UpdatePairsTrade(indicators[i], openTrades, closedTrades);
-            
+
             openTrades.RemoveAll(ot => !ot.Running);
         }
-        
+
         var summary = CalcPairsSimSummary(indicators, tradeRisk, closedTrades);
 
         return (closedTrades.ToArray(), summary);
@@ -255,7 +255,7 @@ public static class BackTestingExtensions
         }
     }
 
-    private static void UpdateTrades(IndicatorResult indicator, bool updateTrade, List<TradeResult> openTrades, 
+    private static void UpdateTrades(IndicatorResult indicator, bool updateTrade, List<TradeResult> openTrades,
         List<TradeResult> closedTrades)
     {
         foreach (var trade in openTrades)
@@ -274,8 +274,8 @@ public static class BackTestingExtensions
             closedTrades.Add(trade);
         }
     }
-    
-    private static void UpdatePairsTrade(PairsIndicatorResult indicator, List<PairTradeResult> openTrades, 
+
+    private static void UpdatePairsTrade(PairsIndicatorResult indicator, List<PairTradeResult> openTrades,
         List<PairTradeResult> closedTrades)
     {
         foreach (var trade in openTrades)
@@ -286,7 +286,7 @@ public static class BackTestingExtensions
                 trade.EndTime = indicator.CandleA.Time;
                 trade.Result = indicator.TakeProfit ? 1 : -1;
             }
-            
+
             if (trade.Running) continue;
 
             closedTrades.Add(trade);
@@ -386,7 +386,7 @@ public static class BackTestingExtensions
         return Math.Abs(triggerPrice - takeProfit) / ((triggerPrice + takeProfit) / 2) * 100;
     }
 
-    private static SimulationSummary CalcSimSummary(IndicatorResult[] indicators, int tradeRisk, decimal riskReward, 
+    private static SimulationSummary CalcSimSummary(IndicatorResult[] indicators, int tradeRisk, decimal riskReward,
         List<TradeResult> closedTrades)
     {
         var summary = new SimulationSummary
@@ -420,8 +420,8 @@ public static class BackTestingExtensions
 
         return summary;
     }
-    
-    private static SimulationSummary CalcPairsSimSummary(PairsIndicatorResult[] indicators, int tradeRisk, 
+
+    private static SimulationSummary CalcPairsSimSummary(PairsIndicatorResult[] indicators, int tradeRisk,
         List<PairTradeResult> closedTrades)
     {
         var summary = new SimulationSummary

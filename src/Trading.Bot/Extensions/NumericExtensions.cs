@@ -225,31 +225,31 @@ public static class NumericExtensions
 
         return Math.Sqrt(sumSq / length).NaN2Zero();
     }
-    
+
     public static double CalcZScore(this double[] sequence)
     {
         var currentValue = sequence.Last();
-        
+
         var average = sequence.Average();
 
         var std = sequence.CalcStdDev();
 
         return std == 0 ? 0.0 : (currentValue - average) / std;
     }
-    
+
     public static double[] CalcLogReturns(this double[] sequence)
     {
         var length = sequence.Length;
-        
+
         var returns = new double[length];
-        
+
         returns[0] = Math.Log(sequence[0]);
 
         for (var i = 1; i < length; i++)
         {
             returns[i] = Math.Log(sequence[i] / sequence[i - 1]);
         }
-        
+
         return returns;
     }
 

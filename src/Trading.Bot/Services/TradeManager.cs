@@ -156,6 +156,7 @@ public class TradeManager : BackgroundService
         if (calcResults.All(cr => cr.Signal != Signal.None))
         {
             await TryExecuteTrade(settings, calcResults.First(), openTrades);
+            return;
         }
 
         _logger.LogInformation("Not placing a trade for {Instrument} based on the indicator", settings.Instrument);
@@ -193,7 +194,14 @@ public class TradeManager : BackgroundService
             openTrades = [];
         }
 
-        await TryExecutePairsTrade(tradeSettings, calcResult, openTrades);
+        if (calcResult.Signal != Signal.None)
+        {
+            await TryExecutePairsTrade(tradeSettings, calcResult, openTrades);
+            return;
+        }
+
+        _logger.LogInformation("Not placing a trade for {Pairs} based on the indicator",
+            string.Join(",", tradeSettings.Select(s => s.Instrument)));
     }
 
     private async Task TryExecuteTrade(TradeSettings settings, IndicatorResult indicator, TradeResponse[] openTrades)
@@ -203,7 +211,7 @@ public class TradeManager : BackgroundService
             _logger.LogInformation("Cannot place trade for {Instrument}, already open.", settings.Instrument);
             return;
         }
-        
+
         var instrument = _instruments.FirstOrDefault(i => i.Name == settings.Instrument);
 
         if (instrument is null)
@@ -211,16 +219,21 @@ public class TradeManager : BackgroundService
             _logger.LogInformation("Cannot place trade for {Instrument}, not found in config.", settings.Instrument);
             return;
         }
-        
+
         await ExecuteTrade(settings, indicator, instrument);
     }
 
-    private async Task TryExecutePairsTrade(TradeSettings[] tradeSettings, PairsIndicatorResult indicator, 
+    private async Task TryExecutePairsTrade(TradeSettings[] tradeSettings, PairsIndicatorResult indicator,
         TradeResponse[] openTrades)
     {
-        if (indicator.Signal is Signal.None || openTrades.Length > 0) return;
-        
-        var instrumentsFound = _instruments.All(i => 
+        if (openTrades.Length > 0)
+        {
+            _logger.LogInformation("Cannot place trade for {Pairs}, already open.",
+                string.Join(",", tradeSettings.Select(s => s.Instrument)));
+            return;
+        }
+
+        var instrumentsFound = _instruments.All(i =>
             tradeSettings.Any(t => t.Instrument == i.Name));
 
         if (!instrumentsFound)
@@ -230,10 +243,10 @@ public class TradeManager : BackgroundService
             return;
         }
 
-        await Task.WhenAll(tradeSettings.Select(settings => ExecuteTrade(settings, indicator, 
+        await Task.WhenAll(tradeSettings.Select(settings => ExecuteTrade(settings, indicator,
             _instruments.First(i => i.Name == settings.Instrument))));
     }
-    
+
     private async Task ExecuteTrade(TradeSettings settings, IndicatorResult indicator, Instrument instrument)
     {
         var tradeUnits = await GetTradeUnits(settings, indicator);
@@ -255,7 +268,7 @@ public class TradeManager : BackgroundService
             _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
             return;
         }
-        
+
         if (_tradeConfiguration.SendEmail)
         {
             await SendEmailNotification(new
@@ -269,11 +282,11 @@ public class TradeManager : BackgroundService
     private async Task ExecuteTrade(TradeSettings settings, PairsIndicatorResult indicator, Instrument instrument)
     {
         var isPrimary = _tradeConfiguration.TradeSettings[0].Instrument == settings.Instrument;
-        
-        var tradeUnits = isPrimary 
-            ? indicator.UnitsA 
+
+        var tradeUnits = isPrimary
+            ? indicator.UnitsA
             : indicator.UnitsB;
-        
+
         var signal = isPrimary
             ? indicator.Signal
             : GetOppositeSignal(indicator.Signal);
@@ -291,7 +304,7 @@ public class TradeManager : BackgroundService
             _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
             return;
         }
-        
+
         if (_tradeConfiguration.SendEmail)
         {
             await SendEmailNotification(new
@@ -306,7 +319,7 @@ public class TradeManager : BackgroundService
     {
         return indicator.Gain * multiplier;
     }
-    
+
     private static Signal GetOppositeSignal(Signal signal)
     {
         return signal is Signal.Buy ? Signal.Sell : Signal.Buy;
@@ -334,7 +347,7 @@ public class TradeManager : BackgroundService
 
         if (price is null) return 0;
 
-        var pipLocation = _instruments.FirstOrDefault(i => 
+        var pipLocation = _instruments.FirstOrDefault(i =>
             i.Name == settings.Instrument)?.PipLocation ?? 1;
 
         var numPips = indicator.Loss / pipLocation;
@@ -343,18 +356,18 @@ public class TradeManager : BackgroundService
 
         return perPipLoss / (price.HomeConversion * pipLocation);
     }
-    
+
     private async Task<decimal> GetTradeUnits(TradeSettings settings, Candle[] candles, decimal multiplier)
     {
         var price = (await _apiService.GetPrices(settings.Instrument)).FirstOrDefault();
 
         if (price is null) return 0;
-        
+
         var atrResult = candles.CalcAtr();
-        
+
         var stopDistance = (decimal)atrResult.Last().Atr * multiplier;
 
-        var pipLocation = _instruments.FirstOrDefault(i => 
+        var pipLocation = _instruments.FirstOrDefault(i =>
             i.Name == settings.Instrument)?.PipLocation ?? 1;
 
         var numPips = stopDistance / pipLocation;
@@ -379,7 +392,7 @@ public class TradeManager : BackgroundService
             : indicator.Signal is Signal.Buy;
 
         if (!shouldCloseTrade) return false;
-        
+
         await _apiService.CloseTrade(openTrade.Id);
 
         return true;
@@ -394,7 +407,7 @@ public class TradeManager : BackgroundService
             : indicator.Candle.Bid_C;
 
         if (!ShouldAddTrailingStop(openTrade, currentValue)) return false;
-        
+
         var displayPrecision = _instruments.First(i => i.Name == openTrade.Instrument).DisplayPrecision;
 
         var trailingStop = Math.Abs(currentValue - openTrade.Price) - indicator.Candle.Spread;

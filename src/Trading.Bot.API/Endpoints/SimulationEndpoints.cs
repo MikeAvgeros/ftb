@@ -132,7 +132,7 @@ public static class SimulationEndpoints
             return Results.Problem(ex.Message);
         }
     }
-    
+
     private static async Task<IResult> SimulatePairsTrading(ISender sender,
         [AsParameters] PairsTradingRequest request)
     {
