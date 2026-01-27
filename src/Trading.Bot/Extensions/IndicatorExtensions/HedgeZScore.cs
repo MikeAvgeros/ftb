@@ -2,10 +2,6 @@
 
 public static partial class Indicator
 {
-    private const double EntryZ = 2.0;
-    private const double ExitZ = 0.25;
-    private const double StopZ = 3.0;
-
     public static PairsIndicatorResult[] CalcHedgeZScore(this Candle[] pairA, Candle[] pairB, int window = 50,
         decimal maxSpread = 0.0004m, int tradeRisk = 10)
     {
