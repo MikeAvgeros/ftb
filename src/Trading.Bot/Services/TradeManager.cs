@@ -179,7 +179,7 @@ public class TradeManager : BackgroundService
         if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
         {
             calcResult.UnitsA = await GetTradeUnits(tradeSettings[0], candles[0], 2m);
-            calcResult.UnitsB = await GetTradeUnits(tradeSettings[1], candles[1], 2m) * calcResult.Beta;
+            calcResult.UnitsB = await GetTradeUnits(tradeSettings[1], candles[1], 2m);
         }
 
         var openTrades = await _apiService.GetOpenTrades();
@@ -190,9 +190,6 @@ public class TradeManager : BackgroundService
             {
                 await _apiService.CloseTrade(trade.Id);
             }
-
-            _logger.LogInformation("Closing trades - Take Profit:{TakeProfit}, Stop Loss:{StopLoss}",
-                calcResult.TakeProfit, calcResult.StopLoss);
 
             openTrades = [];
         }
@@ -382,8 +379,17 @@ public class TradeManager : BackgroundService
 
     private static bool ShouldExitPairsTrade(TradeResponse[] openTrades, PairsIndicatorResult indicator)
     {
-        return openTrades.Length > 0 && (indicator.TakeProfit || indicator.StopLoss || openTrades.Any(ot =>
+        return openTrades.Length > 0 && (ShouldTakeProfit(openTrades, indicator) || indicator.StopLoss || openTrades.Any(ot =>
                 DateTime.UtcNow.Subtract(ot.OpenTime) > TimeSpan.FromHours(2)));
+    }
+
+    private static bool ShouldTakeProfit(TradeResponse[] openTrades, PairsIndicatorResult indicator)
+    {
+        if (!indicator.TakeProfit) return false;
+
+        var totalPL = openTrades.Sum(ot => ot.UnrealizedPL);
+
+        return totalPL > 0;
     }
 
     private async Task<bool> CloseOppositeTrade(IndicatorResult indicator, TradeResponse openTrade)
