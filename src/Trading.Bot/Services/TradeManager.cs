@@ -174,12 +174,12 @@ public class TradeManager : BackgroundService
                 string.Join(",", tradeSettings.Select(s => s.Instrument)));
         }
 
-        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1]).Last();
+        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1], tradeSettings[0].Integers[0]).Last();
 
         if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
         {
-            calcResult.UnitsA = await GetTradeUnits(tradeSettings.First(), candles[0], 1.5m);
-            calcResult.UnitsB = await GetTradeUnits(tradeSettings.Last(), candles[1], 1.5m);
+            calcResult.UnitsA = await GetTradeUnits(tradeSettings[0], candles[0], 2m);
+            calcResult.UnitsB = await GetTradeUnits(tradeSettings[1], candles[1], 2m);
         }
 
         var openTrades = await _apiService.GetOpenTrades();
@@ -190,6 +190,9 @@ public class TradeManager : BackgroundService
             {
                 await _apiService.CloseTrade(trade.Id);
             }
+
+            _logger.LogInformation("Closing trades - Take Profit:{TakeProfit}, Stop Loss:{StopLoss}",
+                calcResult.TakeProfit, calcResult.StopLoss);
 
             openTrades = [];
         }
