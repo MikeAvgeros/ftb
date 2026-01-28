@@ -213,6 +213,8 @@ public static class BackTestingExtensions
 
         for (var i = 0; i < length; i++)
         {
+            UpdateUnrealisedPlForPairs(indicators[i], openTrades);
+            
             if (indicators[i].Signal != Signal.None && openTrades.Count == 0)
             {
                 openTrades.Add(new PairTradeResult
@@ -224,6 +226,12 @@ public static class BackTestingExtensions
                     CandleBSignal = indicators[i].Signal == Signal.Buy
                         ? Signal.Sell
                         : Signal.Buy,
+                    TriggerAPrice = indicators[i].Signal == Signal.Buy
+                        ? indicators[i].CandleA.Ask_C
+                        : indicators[i].CandleA.Bid_C,
+                    TriggerBPrice = indicators[i].Signal == Signal.Buy
+                        ? indicators[i].CandleB.Bid_C
+                        : indicators[i].CandleB.Ask_C,
                     StartTime = indicators[i].CandleA.Time,
                     EndTime = indicators[i].CandleA.Time,
                     Result = 0
@@ -254,6 +262,28 @@ public static class BackTestingExtensions
             };
         }
     }
+    
+    private static void UpdateUnrealisedPlForPairs(PairsIndicatorResult indicator, List<PairTradeResult> openTrades)
+    {
+        foreach (var trade in openTrades)
+        {
+            var apl = trade.CandleASignal switch
+            {
+                Signal.Buy => indicator.CandleA.Bid_C - trade.TriggerAPrice,
+                Signal.Sell => trade.TriggerAPrice - indicator.CandleA.Ask_C,
+                _ => trade.UnrealisedPl
+            };
+            
+            var bpl = trade.CandleBSignal switch
+            {
+                Signal.Buy => indicator.CandleB.Bid_C - trade.TriggerBPrice,
+                Signal.Sell => trade.TriggerBPrice - indicator.CandleB.Ask_C,
+                _ => trade.UnrealisedPl
+            };
+            
+            trade.UnrealisedPl = apl + bpl;
+        }
+    }
 
     private static void UpdateTrades(IndicatorResult indicator, bool updateTrade, List<TradeResult> openTrades,
         List<TradeResult> closedTrades)
@@ -280,11 +310,11 @@ public static class BackTestingExtensions
     {
         foreach (var trade in openTrades)
         {
-            if (indicator.TakeProfit || indicator.StopLoss)
+            if ((indicator.TakeProfit && trade.UnrealisedPl > 0) || indicator.StopLoss)
             {
                 trade.Running = false;
                 trade.EndTime = indicator.CandleA.Time;
-                trade.Result = indicator.TakeProfit ? 1 : -1;
+                trade.Result = trade.UnrealisedPl > 0 ? 1 : -1;
             }
 
             if (trade.Running) continue;
