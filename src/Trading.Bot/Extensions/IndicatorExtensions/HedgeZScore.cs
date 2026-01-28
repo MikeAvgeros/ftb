@@ -31,13 +31,13 @@ public static partial class Indicator
 
             var pairBHistory = pairBPrices.Take(i).TakeLast(window).ToArray();
 
-            var hedgeRatio = CalcHedgeRatio(pairAHistory, pairBHistory);
+            var beta = pairAHistory.CalcHedgeRatio(pairBHistory);
 
             var spreadHistory = new double[window];
 
             for (var y = 0; y < window; y++)
             {
-                spreadHistory[y] = pairAHistory[y] - hedgeRatio * pairBHistory[y];
+                spreadHistory[y] = pairAHistory[y] - beta * pairBHistory[y];
             }
 
             var zScore = spreadHistory.CalcZScore();
@@ -52,44 +52,10 @@ public static partial class Indicator
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
-
-            if (result[i].Signal is Signal.None) continue;
-
-            var spreadStd = spreadHistory.CalcStdDev();
-
-            var worstSpreadMove = Math.Abs(StopZ - EntryZ) * spreadStd;
-
-            var unitsA = tradeRisk / ((double)pairA.Last().Mid_C * worstSpreadMove);
-
-            var unitsB = unitsA * hedgeRatio;
-
-            result[i].UnitsA = (decimal)unitsA;
-
-            result[i].UnitsB = (decimal)unitsB;
+            
+            result[i].Beta = (decimal)beta;
         }
 
         return result;
-    }
-
-    private static double CalcHedgeRatio(double[] sequenceA, double[] sequenceB)
-    {
-        var averageA = sequenceA.Average();
-
-        var averageB = sequenceB.Average();
-
-        double numerator = 0;
-
-        double denominator = 0;
-
-        var length = sequenceA.Length;
-
-        for (var i = 0; i < length; i++)
-        {
-            numerator += (sequenceA[i] - averageA) * (sequenceB[i] - averageB);
-
-            denominator += (sequenceB[i] - averageB) * (sequenceB[i] - averageB);
-        }
-
-        return denominator == 0 ? 1.0 : numerator / denominator;
     }
 }

@@ -7,9 +7,9 @@ public static partial class Indicator
     {
         if (pairA.Length != pairB.Length) throw new ArgumentException("Pairs must have the same length.");
 
-        var logA = pairA.Select(c => (double)c.Mid_C).ToArray();
+        var pricesA = pairA.Select(c => (double)c.Mid_C).ToArray();
 
-        var logB = pairB.Select(c => (double)c.Mid_C).ToArray();
+        var pricesB = pairB.Select(c => (double)c.Mid_C).ToArray();
 
         var length = pairA.Length;
 
@@ -27,21 +27,24 @@ public static partial class Indicator
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
 
-            var logAHistory = logA.Take(i).TakeLast(window).ToArray();
+            var pricesAHistory = pricesA.Take(i).TakeLast(window).ToArray();
 
-            var logBHistory = logB.Take(i).TakeLast(window).ToArray();
+            var pricesBHistory = pricesB.Take(i).TakeLast(window).ToArray();
 
-            var da = logAHistory.Select(v => v - logAHistory.Average()).ToArray();
+            var distanceA = pricesAHistory.Select(v => v - pricesAHistory.Average()).ToArray();
 
-            var db = logBHistory.Select(v => v - logBHistory.Average()).ToArray();
+            var distanceB = pricesBHistory.Select(v => v - pricesBHistory.Average()).ToArray();
+            
+            var beta = distanceA.CalcHedgeRatio(distanceB);
 
-            var diff = da.Zip(db, (a, b) => a - b).ToArray();
+            var diff = new double[window];
 
-            var mean = diff.Average();
+            for (var y = 0; y < window; y++)
+            {
+                diff[y] = distanceA[y] - beta * distanceB[y];
+            }
 
-            var std = diff.CalcStdDev();
-
-            var zScore = (diff.Last() - mean) / std;
+            var zScore = diff.CalcZScore();
 
             result[i].Signal = zScore switch
             {
@@ -53,6 +56,8 @@ public static partial class Indicator
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
+            
+            result[i].Beta = (decimal)beta;
         }
 
         return result;

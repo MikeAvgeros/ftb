@@ -225,6 +225,28 @@ public static class NumericExtensions
 
         return Math.Sqrt(sumSq / length).NaN2Zero();
     }
+    
+    public static double CalcHedgeRatio(this double[] sequenceA, double[] sequenceB)
+    {
+        var averageA = sequenceA.Average();
+
+        var averageB = sequenceB.Average();
+
+        double numerator = 0;
+
+        double denominator = 0;
+
+        var length = sequenceA.Length;
+
+        for (var i = 0; i < length; i++)
+        {
+            numerator += (sequenceA[i] - averageA) * (sequenceB[i] - averageB);
+
+            denominator += (sequenceB[i] - averageB) * (sequenceB[i] - averageB);
+        }
+
+        return denominator == 0 ? 1.0 : numerator / denominator;
+    }
 
     public static double CalcZScore(this double[] sequence)
     {
@@ -241,13 +263,11 @@ public static class NumericExtensions
     {
         var length = sequence.Length;
 
-        var returns = new double[length];
-
-        returns[0] = Math.Log(sequence[0]);
+        var returns = new double[length - 1];
 
         for (var i = 1; i < length; i++)
         {
-            returns[i] = Math.Log(sequence[i] / sequence[i - 1]);
+            returns[i - 1] = Math.Log(sequence[i] / sequence[i - 1]);
         }
 
         return returns;

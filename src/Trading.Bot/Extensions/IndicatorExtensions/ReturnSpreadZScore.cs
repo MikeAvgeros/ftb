@@ -15,8 +15,6 @@ public static partial class Indicator
 
         var returnsB = pricesB.CalcLogReturns();
 
-        var spreads = returnsA.Zip(returnsB, (a, b) => a - b).ToArray();
-
         var length = pairA.Length;
 
         var result = new PairsIndicatorResult[length];
@@ -32,14 +30,21 @@ public static partial class Indicator
             if (i < window) continue;
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
+            
+            var returnAHistory = returnsA.Take(i).TakeLast(window).ToArray();
 
-            var spreadHistory = spreads.Take(i).TakeLast(window).ToArray();
+            var returnBHistory = returnsB.Take(i).TakeLast(window).ToArray();
+            
+            var beta = returnAHistory.CalcHedgeRatio(returnBHistory);
 
-            var mean = spreadHistory.Average();
+            var spreadHistory = new double[window];
 
-            var std = spreadHistory.CalcStdDev();
+            for (var y = 0; y < window; y++)
+            {
+                spreadHistory[y] = returnAHistory[y] - beta * returnBHistory[y];
+            }
 
-            var zScore = (spreadHistory.Last() - mean) / std;
+            var zScore = spreadHistory.CalcZScore();
 
             result[i].Signal = zScore switch
             {
@@ -51,6 +56,8 @@ public static partial class Indicator
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
+            
+            result[i].Beta = (decimal)beta;
         }
 
         return result;

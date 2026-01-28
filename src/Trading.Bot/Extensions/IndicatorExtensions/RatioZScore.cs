@@ -32,11 +32,7 @@ public static partial class Indicator
 
             var ratioHistory = ratios.Take(i).TakeLast(window).ToArray();
 
-            var mean = ratioHistory.Average();
-
-            var std = ratioHistory.CalcStdDev();
-
-            var zScore = (ratioHistory.Last() - mean) / std;
+            var zScore = ratioHistory.CalcZScore();
 
             result[i].Signal = zScore switch
             {
