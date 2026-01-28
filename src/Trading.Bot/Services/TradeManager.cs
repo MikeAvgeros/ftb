@@ -174,7 +174,7 @@ public class TradeManager : BackgroundService
                 string.Join(",", tradeSettings.Select(s => s.Instrument)));
         }
 
-        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1], tradeSettings[0].Integers[0]).Last();
+        var calcResult = candles[0].CalcRatioZScore(candles[1], tradeSettings[0].Integers[0]).Last();
 
         if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
         {

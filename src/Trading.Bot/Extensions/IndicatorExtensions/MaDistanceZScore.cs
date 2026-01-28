@@ -7,9 +7,9 @@ public static partial class Indicator
     {
         if (pairA.Length != pairB.Length) throw new ArgumentException("Pairs must have the same length.");
 
-        var logA = pairA.Select(c => Math.Log((double)c.Mid_C)).ToArray();
+        var logA = pairA.Select(c => (double)c.Mid_C).ToArray();
 
-        var logB = pairB.Select(c => Math.Log((double)c.Mid_C)).ToArray();
+        var logB = pairB.Select(c => (double)c.Mid_C).ToArray();
 
         var length = pairA.Length;
 
