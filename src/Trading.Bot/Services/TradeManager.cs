@@ -379,14 +379,14 @@ public class TradeManager : BackgroundService
 
     private static bool ShouldExitPairsTrade(TradeResponse[] openTrades, PairsIndicatorResult indicator)
     {
-        return openTrades.Length > 0 && (ShouldTakeProfit(openTrades, indicator) || indicator.StopLoss || openTrades.Any(ot =>
-                DateTime.UtcNow.Subtract(ot.OpenTime) > TimeSpan.FromHours(2)));
+        if (openTrades.Length == 0) return false;
+
+        return (indicator.TakeProfit && HasPositiveUnrealisedPl(openTrades)) || indicator.StopLoss || openTrades.Any(ot =>
+                DateTime.UtcNow.Subtract(ot.OpenTime) > TimeSpan.FromHours(1) && HasPositiveUnrealisedPl(openTrades));
     }
 
-    private static bool ShouldTakeProfit(TradeResponse[] openTrades, PairsIndicatorResult indicator)
+    private static bool HasPositiveUnrealisedPl(TradeResponse[] openTrades)
     {
-        if (!indicator.TakeProfit) return false;
-
         var totalPL = openTrades.Sum(ot => ot.UnrealizedPL);
 
         return totalPL > 0;
