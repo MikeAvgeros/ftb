@@ -381,8 +381,7 @@ public class TradeManager : BackgroundService
     {
         if (openTrades.Length == 0) return false;
 
-        return (indicator.TakeProfit && HasPositiveUnrealisedPl(openTrades)) || indicator.StopLoss || openTrades.Any(ot =>
-                DateTime.UtcNow.Subtract(ot.OpenTime) > TimeSpan.FromHours(1) && HasPositiveUnrealisedPl(openTrades));
+        return HasPositiveUnrealisedPl(openTrades) || indicator.StopLoss;
     }
 
     private static bool HasPositiveUnrealisedPl(TradeResponse[] openTrades)
