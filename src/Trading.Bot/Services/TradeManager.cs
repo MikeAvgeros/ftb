@@ -174,12 +174,12 @@ public class TradeManager : BackgroundService
                 string.Join(",", tradeSettings.Select(s => s.Instrument)));
         }
 
-        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1], tradeSettings[0].Integers[0]).Last();
+        var calcResult = candles[0].CalcMaDistance(candles[1], tradeSettings[0].Integers[0]).Last();
 
         if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
         {
-            calcResult.UnitsA = await GetTradeUnits(tradeSettings[0], candles[0], 2m);
-            calcResult.UnitsB = await GetTradeUnits(tradeSettings[1], candles[1], 2m);
+            calcResult.UnitsA = 4000 + 10000000 * (decimal)candles[0].CalcAtr().Last().Atr;
+            calcResult.UnitsB = 4000 + 10000000 * (decimal)candles[1].CalcAtr().Last().Atr;
         }
 
         var openTrades = await _apiService.GetOpenTrades();
@@ -387,9 +387,9 @@ public class TradeManager : BackgroundService
 
     private static bool HasPositiveUnrealisedPl(TradeResponse[] openTrades)
     {
-        var totalPL = openTrades.Sum(ot => ot.UnrealizedPL);
+        var totalPl = openTrades.Sum(ot => ot.UnrealizedPL);
 
-        return totalPL > 0;
+        return totalPl > 0;
     }
 
     private async Task<bool> CloseOppositeTrade(IndicatorResult indicator, TradeResponse openTrade)
