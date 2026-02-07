@@ -174,12 +174,12 @@ public class TradeManager : BackgroundService
                 string.Join(",", tradeSettings.Select(s => s.Instrument)));
         }
 
-        var calcResult = candles[0].CalcMaDistance(candles[1], tradeSettings[0].Integers[0]).Last();
+        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1], tradeSettings[0].Integers[0]).Last();
 
         if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
         {
-            calcResult.UnitsA = 4000 + 10000000 * (decimal)candles[0].CalcAtr().Last().Atr;
-            calcResult.UnitsB = 4000 + 10000000 * (decimal)candles[1].CalcAtr().Last().Atr;
+            calcResult.UnitsA = 5000;
+            calcResult.UnitsB = 5000 * calcResult.Beta;
         }
 
         var openTrades = await _apiService.GetOpenTrades();
@@ -351,26 +351,6 @@ public class TradeManager : BackgroundService
             i.Name == settings.Instrument)?.PipLocation ?? 1;
 
         var numPips = indicator.Loss / pipLocation;
-
-        var perPipLoss = _tradeConfiguration.TradeRisk / numPips;
-
-        return perPipLoss / (price.HomeConversion * pipLocation);
-    }
-
-    private async Task<decimal> GetTradeUnits(TradeSettings settings, Candle[] candles, decimal multiplier)
-    {
-        var price = (await _apiService.GetPrices(settings.Instrument)).FirstOrDefault();
-
-        if (price is null) return 0;
-
-        var atrResult = candles.CalcAtr();
-
-        var stopDistance = (decimal)atrResult.Last().Atr * multiplier;
-
-        var pipLocation = _instruments.FirstOrDefault(i =>
-            i.Name == settings.Instrument)?.PipLocation ?? 1;
-
-        var numPips = stopDistance / pipLocation;
 
         var perPipLoss = _tradeConfiguration.TradeRisk / numPips;
 

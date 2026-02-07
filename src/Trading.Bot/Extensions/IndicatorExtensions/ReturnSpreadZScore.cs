@@ -35,7 +35,7 @@ public static partial class Indicator
 
             var returnBHistory = returnsB.Take(i).TakeLast(window).ToArray();
             
-            var beta = returnAHistory.CalcHedgeRatio(returnBHistory);
+            var beta = Math.Clamp(returnAHistory.CalcBeta(returnBHistory), 0.5, 1.2);
 
             var spreadHistory = new double[window];
 

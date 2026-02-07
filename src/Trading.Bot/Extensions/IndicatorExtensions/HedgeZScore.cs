@@ -31,7 +31,7 @@ public static partial class Indicator
 
             var pairBHistory = pairBPrices.Take(i).TakeLast(window).ToArray();
 
-            var beta = pairAHistory.CalcHedgeRatio(pairBHistory);
+            var beta = Math.Clamp(pairAHistory.CalcBeta(pairBHistory), 0.5, 1.2);
 
             var spreadHistory = new double[window];
 

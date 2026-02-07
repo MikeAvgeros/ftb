@@ -2,7 +2,7 @@
 
 public static partial class Indicator
 {
-    public static PairsIndicatorResult[] CalcMaDistanceZScore(this Candle[] pairA, Candle[] pairB,
+    public static PairsIndicatorResult[] CalcKalmanFilteredReturnSpread(this Candle[] pairA, Candle[] pairB,
         int window = 50, decimal maxSpread = 0.0004m)
     {
         if (pairA.Length != pairB.Length) throw new ArgumentException("Pairs must have the same length.");
@@ -10,6 +10,10 @@ public static partial class Indicator
         var pricesA = pairA.Select(c => (double)c.Mid_C).ToArray();
 
         var pricesB = pairB.Select(c => (double)c.Mid_C).ToArray();
+
+        var returnsA = pricesA.CalcLogReturns();
+
+        var returnsB = pricesB.CalcLogReturns();
 
         var length = pairA.Length;
 
@@ -26,30 +30,31 @@ public static partial class Indicator
             if (i < window) continue;
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
-
-            var pricesAHistory = pricesA.Take(i).TakeLast(window).ToArray();
-
-            var pricesBHistory = pricesB.Take(i).TakeLast(window).ToArray();
-
-            var distanceA = pricesAHistory.Select(v => v - pricesAHistory.Average()).ToArray();
-
-            var distanceB = pricesBHistory.Select(v => v - pricesBHistory.Average()).ToArray();
             
-            var beta = Math.Clamp(distanceA.CalcBeta(distanceB), 0.5, 1.2);
+            var returnAHistory = returnsA.Take(i).TakeLast(window).ToArray();
 
-            var diff = new double[window];
+            var returnBHistory = returnsB.Take(i).TakeLast(window).ToArray();
+            
+            var correlation = returnAHistory.CalcCorrelation(returnBHistory);
+
+            var spreadHistory = new double[window];
+
+            double beta = 0.9, variance = 0.1;
 
             for (var y = 0; y < window; y++)
             {
-                diff[y] = distanceA[y] - beta * distanceB[y];
+                var kalman = returnAHistory[y].CalcKalmanBeta(returnBHistory[y], beta, variance);
+                spreadHistory[y] = returnAHistory[y] - kalman.Beta * returnBHistory[y];
+                beta = kalman.Beta;
+                variance = kalman.Variance;
             }
 
-            var zScore = diff.CalcZScore();
+            var zScore = spreadHistory.CalcZScore();
 
             result[i].Signal = zScore switch
             {
-                < -EntryZ => Signal.Buy,
-                > EntryZ => Signal.Sell,
+                < -EntryZ when correlation > 0.6 => Signal.Buy,
+                > EntryZ when correlation > 0.6 => Signal.Sell,
                 _ => Signal.None
             };
 

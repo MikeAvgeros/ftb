@@ -226,7 +226,7 @@ public static class NumericExtensions
         return Math.Sqrt(sumSq / length).NaN2Zero();
     }
     
-    public static double CalcHedgeRatio(this double[] sequenceA, double[] sequenceB)
+    public static double CalcBeta(this double[] sequenceA, double[] sequenceB)
     {
         var averageA = sequenceA.Average();
 
@@ -246,6 +246,53 @@ public static class NumericExtensions
         }
 
         return denominator == 0 ? 1.0 : numerator / denominator;
+    }
+    
+    public static double CalcCorrelation(this double[] sequenceA, double[] sequenceB)
+    {
+        var mx = sequenceA.Average();
+        
+        var my = sequenceB.Average();
+
+        double num = 0;
+        double dx = 0;
+        double dy = 0;
+        
+        var length = sequenceA.Length;
+
+        for (var i = 0; i < length; i++)
+        {
+            var vx = sequenceA[i] - mx;
+            var vy = sequenceB[i] - my;
+
+            num += vx * vy;
+            dx += vx * vx;
+            dy += vy * vy;
+        }
+
+        return num / Math.Sqrt(dx * dy);
+    }
+    
+    public static (double Beta, double Variance) CalcKalmanBeta(
+        this double valueA, 
+        double valueB,
+        double prevBeta,
+        double prevVariance,
+        double q = 1e-6,
+        double r = 1e-4)
+    {
+        var varPred = prevVariance + q;
+
+        var innovation = valueA - prevBeta * valueB;
+        
+        var innovationVar = valueB * valueB * varPred + r;
+
+        var k = varPred * valueB / innovationVar;
+
+        return new ValueTuple<double, double>(
+            prevBeta + k * innovation,
+            (1 - k * valueB) * varPred
+        );
     }
 
     public static double CalcZScore(this double[] sequence)
