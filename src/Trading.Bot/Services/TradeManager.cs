@@ -381,7 +381,9 @@ public class TradeManager : BackgroundService
     {
         if (openTrades.Length == 0) return false;
 
-        return HasPositiveUnrealisedPl(openTrades) || indicator.StopLoss;
+        return CanTakeProfit(openTrades, indicator) ||
+               HasOverExposureWithProfit(DateTime.UtcNow, openTrades) ||
+               indicator.StopLoss;
     }
 
     private static bool HasPositiveUnrealisedPl(TradeResponse[] openTrades)
@@ -390,6 +392,13 @@ public class TradeManager : BackgroundService
 
         return totalPl > 0;
     }
+
+    private static bool CanTakeProfit(TradeResponse[] openTrades, PairsIndicatorResult indicator)
+        => indicator.TakeProfit && HasPositiveUnrealisedPl(openTrades);
+
+    private static bool HasOverExposureWithProfit(DateTime currentTime, TradeResponse[] openTrades)
+        => openTrades.Any(ot => currentTime.Subtract(ot.OpenTime) >= TimeSpan.FromHours(1)) &&
+            HasPositiveUnrealisedPl(openTrades);
 
     private async Task<bool> CloseOppositeTrade(IndicatorResult indicator, TradeResponse openTrade)
     {
