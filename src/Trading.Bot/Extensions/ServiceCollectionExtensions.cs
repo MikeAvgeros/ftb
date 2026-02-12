@@ -2,7 +2,7 @@
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddOandaApiService(this IServiceCollection services, Constants constants)
+    public static void AddOandaApiService(this IServiceCollection services, Constants constants)
     {
         var retryPolicy = HttpPolicyExtensions
             .HandleTransientHttpError()
@@ -18,11 +18,9 @@ public static class ServiceCollectionExtensions
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         }).AddPolicyHandler(retryPolicy);
-
-        return services;
     }
 
-    public static IServiceCollection AddOandaStreamService(this IServiceCollection services, Constants constants)
+    public static void AddOandaStreamService(this IServiceCollection services, Constants constants)
     {
         var retryPolicy = HttpPolicyExtensions
             .HandleTransientHttpError()
@@ -38,7 +36,5 @@ public static class ServiceCollectionExtensions
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         }).AddPolicyHandler(retryPolicy);
-
-        return services;
     }
 }

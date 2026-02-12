@@ -31,7 +31,7 @@ public static partial class Indicator
 
             var pairBHistory = pairBPrices.Take(i).TakeLast(window).ToArray();
 
-            var beta = Math.Clamp(pairAHistory.CalcBeta(pairBHistory), 0.5, 1.2);
+            var beta = pairAHistory.CalcBeta(pairBHistory);
 
             var spreadHistory = new double[window];
 
@@ -53,7 +53,7 @@ public static partial class Indicator
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
             
-            result[i].Beta = (decimal)beta;
+            result[i].Beta = (decimal)Math.Clamp(beta, 0.8, 1.2);
         }
 
         return result;

@@ -62,7 +62,7 @@ public static partial class Indicator
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
             
-            result[i].Beta = (decimal)beta;
+            result[i].Beta = (decimal)Math.Clamp(beta, 0.8, 1.2);
         }
 
         return result;

@@ -1,7 +1,10 @@
-﻿
+﻿using Trading.Bot.API.Middleware;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Services
+
+builder.AddOpenTelemetry();
 
 var constants = builder.Configuration
     .GetSection(nameof(Constants))
@@ -42,6 +45,8 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // Configure
+
+app.UseMiddleware<ActivityMiddleware>();
 
 app.UseSwagger();
 

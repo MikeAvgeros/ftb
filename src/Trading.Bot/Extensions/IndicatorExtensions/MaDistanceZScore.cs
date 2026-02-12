@@ -35,7 +35,7 @@ public static partial class Indicator
 
             var distanceB = pricesBHistory.Select(v => v - pricesBHistory.Average()).ToArray();
             
-            var beta = Math.Clamp(distanceA.CalcBeta(distanceB), 0.5, 1.2);
+            var beta = distanceA.CalcBeta(distanceB);
 
             var diff = new double[window];
 
@@ -57,7 +57,7 @@ public static partial class Indicator
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
             
-            result[i].Beta = (decimal)beta;
+            result[i].Beta = (decimal)Math.Clamp(beta, 0.8, 1.2);
         }
 
         return result;

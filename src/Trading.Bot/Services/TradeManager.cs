@@ -184,7 +184,7 @@ public class TradeManager : BackgroundService
 
         var openTrades = await _apiService.GetOpenTrades();
 
-        if (ShouldExitPairsTrade(openTrades, calcResult))
+        if (ShouldExitPairsTrade(openTrades, calcResult, _tradeConfiguration.TradeRisk))
         {
             foreach (var trade in openTrades)
             {
@@ -357,28 +357,26 @@ public class TradeManager : BackgroundService
         return perPipLoss / (price.HomeConversion * pipLocation);
     }
 
-    private static bool ShouldExitPairsTrade(TradeResponse[] openTrades, PairsIndicatorResult indicator)
+    private static bool ShouldExitPairsTrade(TradeResponse[] openTrades, PairsIndicatorResult indicator,
+        int tradeRisk)
     {
         if (openTrades.Length == 0) return false;
 
-        return CanTakeProfit(openTrades, indicator) ||
-               HasOverExposureWithProfit(DateTime.UtcNow, openTrades) ||
-               indicator.StopLoss;
-    }
-
-    private static bool HasPositiveUnrealisedPl(TradeResponse[] openTrades)
-    {
         var totalPl = openTrades.Sum(ot => ot.UnrealizedPL);
 
-        return totalPl > 0;
+        return CanTakeProfit(indicator, totalPl) ||
+               HasOverExposureWithProfit(DateTime.UtcNow, openTrades) ||
+               indicator.StopLoss || totalPl < -tradeRisk;
     }
 
-    private static bool CanTakeProfit(TradeResponse[] openTrades, PairsIndicatorResult indicator)
-        => indicator.TakeProfit && HasPositiveUnrealisedPl(openTrades);
+    private static bool CanTakeProfit(PairsIndicatorResult indicator, decimal totalPl)
+    {
+        return indicator.TakeProfit && totalPl > 0;
+    }
 
     private static bool HasOverExposureWithProfit(DateTime currentTime, TradeResponse[] openTrades)
         => openTrades.Any(ot => currentTime.Subtract(ot.OpenTime) >= TimeSpan.FromHours(1)) &&
-            HasPositiveUnrealisedPl(openTrades);
+           openTrades.Sum(ot => ot.UnrealizedPL) > 0;
 
     private async Task<bool> CloseOppositeTrade(IndicatorResult indicator, TradeResponse openTrade)
     {
