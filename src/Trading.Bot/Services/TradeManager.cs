@@ -174,12 +174,12 @@ public class TradeManager : BackgroundService
                 string.Join(",", tradeSettings.Select(s => s.Instrument)));
         }
 
-        var calcResult = candles[0].CalcReturnSpreadZScore(candles[1], tradeSettings[0].Integers[0]).Last();
+        var calcResult = candles[0].CalcMaDistanceZScore(candles[1], tradeSettings[0].Integers[0]).Last();
 
         if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
         {
             calcResult.UnitsA = 5000;
-            calcResult.UnitsB = 5000 * calcResult.Beta;
+            calcResult.UnitsB = 5000;
         }
 
         var openTrades = await _apiService.GetOpenTrades();

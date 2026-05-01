@@ -240,7 +240,7 @@ public static class BackTestingExtensions
                 continue;
             }
 
-            UpdatePairsTrade(indicators[i], openTrades, closedTrades);
+            UpdatePairsTrade(indicators[i], openTrades, closedTrades, tradeRisk);
 
             openTrades.RemoveAll(ot => !ot.Running);
         }
@@ -306,11 +306,11 @@ public static class BackTestingExtensions
     }
 
     private static void UpdatePairsTrade(PairsIndicatorResult indicator, List<PairTradeResult> openTrades,
-        List<PairTradeResult> closedTrades)
+        List<PairTradeResult> closedTrades, int tradeRisk)
     {
         foreach (var trade in openTrades)
         {
-            if ((indicator.TakeProfit && trade.UnrealisedPl > 0) || indicator.StopLoss)
+            if (ShouldExitPairsTrade(openTrades, indicator, tradeRisk))
             {
                 trade.Running = false;
                 trade.EndTime = indicator.CandleA.Time;
@@ -472,4 +472,25 @@ public static class BackTestingExtensions
 
         return summary;
     }
+    
+    private static bool ShouldExitPairsTrade(List<PairTradeResult> openTrades, PairsIndicatorResult indicator,
+        int tradeRisk)
+    {
+        if (openTrades.Count == 0) return false;
+
+        var totalPl = openTrades.Sum(ot => ot.UnrealisedPl);
+
+        return CanTakeProfit(indicator, totalPl) ||
+               HasOverExposureWithProfit(indicator.CandleA.Time, openTrades) ||
+               indicator.StopLoss || totalPl < -tradeRisk;
+    }
+
+    private static bool CanTakeProfit(PairsIndicatorResult indicator, decimal totalPl)
+    {
+        return indicator.TakeProfit && totalPl > 0;
+    }
+
+    private static bool HasOverExposureWithProfit(DateTime currentTime, List<PairTradeResult> openTrades)
+        => openTrades.Any(ot => currentTime.Subtract(ot.StartTime) >= TimeSpan.FromHours(1)) &&
+           openTrades.Sum(ot => ot.UnrealisedPl) > 0;
 }

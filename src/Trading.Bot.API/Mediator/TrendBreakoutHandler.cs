@@ -22,11 +22,11 @@ public class TrendBreakoutHandler : IRequestHandler<TrendBreakoutRequest, IResul
 
             var granularity = file.FileName[(file.FileName.LastIndexOf('_') + 1)..file.FileName.IndexOf('.')];
 
-            var nextCandle = candles.CalcTrendBreakout(request.Window, maxSpread, riskReward);
+            var nextCandle = candles.CalcZScorePullBack();
 
             var fileName = $"TrendBreakout_{instrument}_{granularity}";
 
-            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward));
         }
 
         if (fileData.Count == 0) return Task.FromResult(Results.Empty);
