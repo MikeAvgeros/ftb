@@ -7,16 +7,15 @@ public static class ServiceCollectionExtensions
         var retryPolicy = HttpPolicyExtensions
             .HandleTransientHttpError()
             .OrResult(msg => msg.StatusCode == HttpStatusCode.TooManyRequests)
-            .WaitAndRetryAsync(3, retry => TimeSpan.FromSeconds(Math.Pow(2, retry)));
+            .WaitAndRetryAsync(3, retry =>
+                TimeSpan.FromSeconds(Math.Pow(2, retry)) +
+                TimeSpan.FromMilliseconds(Random.Shared.Next(0, 200)));
 
         services.AddHttpClient<OandaApiService>(httpClient =>
         {
             httpClient.BaseAddress = new Uri(constants.OandaApiUrl);
-
             httpClient.DefaultRequestHeaders.Add(HeaderNames.Authorization, $"Bearer {constants.ApiKey}");
-
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
         }).AddPolicyHandler(retryPolicy);
     }
 
@@ -25,16 +24,16 @@ public static class ServiceCollectionExtensions
         var retryPolicy = HttpPolicyExtensions
             .HandleTransientHttpError()
             .OrResult(msg => msg.StatusCode == HttpStatusCode.TooManyRequests)
-            .WaitAndRetryAsync(3, retry => TimeSpan.FromSeconds(Math.Pow(2, retry)));
+            .WaitAndRetryAsync(3, retry =>
+                TimeSpan.FromSeconds(Math.Pow(2, retry)) +
+                TimeSpan.FromMilliseconds(Random.Shared.Next(0, 200)));
 
         services.AddHttpClient<OandaStreamService>(httpClient =>
         {
             httpClient.BaseAddress = new Uri(constants.OandaStreamUrl);
-
+            httpClient.Timeout = Timeout.InfiniteTimeSpan;
             httpClient.DefaultRequestHeaders.Add(HeaderNames.Authorization, $"Bearer {constants.ApiKey}");
-
             httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
         }).AddPolicyHandler(retryPolicy);
     }
 }

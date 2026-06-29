@@ -5,6 +5,8 @@ global using Polly;
 global using Polly.Extensions.Http;
 global using Serilog;
 global using Sgbj.Cron;
+global using System.Buffers;
+global using System.IO.Pipelines;
 global using System.Collections.Concurrent;
 global using System.Net;
 global using System.Net.Http.Headers;

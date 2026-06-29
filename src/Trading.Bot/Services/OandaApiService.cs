@@ -1,113 +1,59 @@
-﻿namespace Trading.Bot.Services;
+namespace Trading.Bot.Services;
 
-public class OandaApiService
+public class OandaApiService(HttpClient httpClient, ILogger<OandaApiService> logger, Constants constants)
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<OandaApiService> _logger;
-    private readonly string _accountId;
+    private readonly string _accountId = constants.AccountId;
 
     public const string DefaultGranularity = "H1";
-    public const string DefaultPrice = "MBA";
+    private const string DefaultPrice = "MBA";
 
-    public OandaApiService(HttpClient httpClient, ILogger<OandaApiService> logger, Constants constants)
+    private static readonly JsonSerializerOptions ReadJsonOptions = new()
     {
-        _httpClient = httpClient;
-        _logger = logger;
-        _accountId = constants.AccountId;
-    }
-
-    private async Task<ApiResponse<T>> GetAsync<T>(string endpoint, string dataKey = null) where T : class
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString
+    };
+    private static readonly JsonSerializerOptions WriteJsonOptions = new()
     {
-        try
-        {
-            using var response = await _httpClient.GetAsync(endpoint);
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        NumberHandling = JsonNumberHandling.WriteAsString,
+        WriteIndented = true
+    };
 
-            if (response.IsSuccessStatusCode)
-            {
-                return await HandleApiResponse<T>(dataKey, response);
-            }
-
-            var stringResponse = await response.Content.ReadAsStringAsync();
-
-            _logger.LogWarning("Get request to Oanda API unsuccessful.\r\n{StringResponse}", stringResponse);
-
-            return new ApiResponse<T>(response.StatusCode, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "An error occurred while getting data from {Endpoint}", endpoint);
-
-            return new ApiResponse<T>(HttpStatusCode.InternalServerError, null);
-        }
-    }
-
-    private async Task<ApiResponse<T>> PostAsync<T>(string endpoint, object body = null, string dataKey = null) where T : class
+    private async Task<ApiResponse<T>> SendAsync<T>(HttpMethod method, string endpoint, object body = null,
+        string dataKey = null, CancellationToken cancellationToken = default) where T : class
     {
         try
         {
-            HttpResponseMessage response;
+            using var request = new HttpRequestMessage(method, endpoint);
 
-            if (body == null)
+            if (method != HttpMethod.Get && body is not null)
             {
-                response = await _httpClient.PostAsync(endpoint, new StringContent(string.Empty));
+                request.Content = Serialize(body);
             }
-            else
-            {
-                var content = Serialize(body);
 
-                response = await _httpClient.PostAsync(endpoint, content);
-            }
+            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
-                return await HandleApiResponse<T>(dataKey, response);
+                return await HandleApiResponse<T>(dataKey, response, cancellationToken);
             }
 
-            var stringResponse = await response.Content.ReadAsStringAsync();
+            var stringResponse = await response.Content.ReadAsStringAsync(cancellationToken);
 
-            _logger.LogWarning("Post request to Oanda API unsuccessful.\r\n{StringResponse}", stringResponse);
+            logger.LogWarning("{Method} {StatusCode} response from Oanda API.\r\n{StringResponse}", method.Method,
+                (int)response.StatusCode, stringResponse);
 
             return new ApiResponse<T>(response.StatusCode, null);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            _logger.LogError(ex, "An error occurred while posting to {Endpoint}.\r\n{Body}", Serialize(body), endpoint);
-
-            return new ApiResponse<T>(HttpStatusCode.InternalServerError, null);
-        }
-    }
-
-    private async Task<ApiResponse<T>> PutAsync<T>(string endpoint, object body = null, string dataKey = null) where T : class
-    {
-        try
-        {
-            HttpResponseMessage response;
-
-            if (body == null)
-            {
-                response = await _httpClient.PutAsync(endpoint, new StringContent(string.Empty));
-            }
-            else
-            {
-                var content = Serialize(body);
-
-                response = await _httpClient.PutAsync(endpoint, content);
-            }
-
-            if (response.IsSuccessStatusCode)
-            {
-                return await HandleApiResponse<T>(dataKey, response);
-            }
-
-            var stringResponse = await response.Content.ReadAsStringAsync();
-
-            _logger.LogWarning("Put request to Oanda API unsuccessful.\r\n{StringResponse}", stringResponse);
-
-            return new ApiResponse<T>(response.StatusCode, null);
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while posting and update to {Endpoint}.\r\n{Body}", Serialize(body), endpoint);
+            logger.LogError(ex, "An error occurred while sending {Method} to {Endpoint}.\r\n{Body}", method.Method,
+                endpoint, body is null ? null : JsonSerializer.Serialize(body, WriteJsonOptions));
 
             return new ApiResponse<T>(HttpStatusCode.InternalServerError, null);
         }
@@ -115,158 +61,144 @@ public class OandaApiService
 
     private static StringContent Serialize(object body)
     {
-        var content =
-            new StringContent(
-                JsonSerializer.Serialize(body,
-                    new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                        NumberHandling = JsonNumberHandling.WriteAsString,
-                        WriteIndented = true
-                    }),
-                Encoding.UTF8, "application/json");
-
-        return content;
+        return new StringContent(JsonSerializer.Serialize(body, WriteJsonOptions), Encoding.UTF8,
+            "application/json");
     }
 
-    private static async Task<ApiResponse<T>> HandleApiResponse<T>(string dataKey, HttpResponseMessage response) where T : class
+    private static async Task<ApiResponse<T>> HandleApiResponse<T>(string dataKey, HttpResponseMessage response,
+        CancellationToken cancellationToken) where T : class
     {
-        var stringResponse = await response.Content.ReadAsStringAsync();
-
-        T value;
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
         if (dataKey == null)
         {
-            value = Deserialize<T>(stringResponse);
+            var value = await JsonSerializer.DeserializeAsync<T>(responseStream, ReadJsonOptions, cancellationToken);
 
             return new ApiResponse<T>(response.StatusCode, value);
         }
 
-        var dictResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(stringResponse);
+        using var document = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
 
-        if (!dictResponse.TryGetValue(dataKey, out var dictValue))
+        if (!document.RootElement.TryGetProperty(dataKey, out var jsonElement))
             return new ApiResponse<T>(HttpStatusCode.NotFound, null);
 
-        value = Deserialize<T>(JsonSerializer.Serialize(dictValue));
+        var selectedValue = jsonElement.Deserialize<T>(ReadJsonOptions);
 
-        return new ApiResponse<T>(response.StatusCode, value);
+        return new ApiResponse<T>(response.StatusCode, selectedValue);
     }
 
-    private static T Deserialize<T>(string stringResponse) where T : class
-    {
-        return JsonSerializer.Deserialize<T>(stringResponse,
-            new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                NumberHandling = JsonNumberHandling.AllowReadingFromString
-            });
-    }
-
-    public async Task<AccountResponse> GetAccountSummary()
+    public async Task<AccountResponse> GetAccountSummary(CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/summary";
 
-        var response = await GetAsync<AccountResponse>(endpoint, "account");
+        var response = await SendAsync<AccountResponse>(HttpMethod.Get, endpoint, dataKey: "account",
+            cancellationToken: cancellationToken);
 
         return response.StatusCode.IsSuccessStatusCode()
             ? response.Value
             : null;
     }
 
-    public async Task<Price[]> GetPrices(string instruments)
+    public async Task<Price[]> GetPrices(string instruments, CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/pricing?instruments={instruments}&includeHomeConversions=true";
 
-        var response = await GetAsync<PricingResponse>(endpoint);
+        var response = await SendAsync<PricingResponse>(HttpMethod.Get, endpoint, cancellationToken: cancellationToken);
 
-        return response.StatusCode.IsSuccessStatusCode()
+        return response.StatusCode.IsSuccessStatusCode() && response.Value is not null
             ? response.Value.MapToPrices()
             : [];
     }
 
-    public async Task<Instrument[]> GetInstruments(string instruments)
+    public async Task<Instrument[]> GetInstruments(string instruments, CancellationToken cancellationToken = default)
     {
         var endpoint = BuildInstrumentsEndpoint(instruments);
 
-        var response = await GetAsync<InstrumentResponse[]>(endpoint, "instruments");
+        var response = await SendAsync<InstrumentResponse[]>(HttpMethod.Get, endpoint, dataKey: "instruments",
+            cancellationToken: cancellationToken);
 
-        return response.StatusCode.IsSuccessStatusCode()
+        return response.StatusCode.IsSuccessStatusCode() && response.Value is not null
             ? response.Value.MapToInstruments()
             : [];
     }
 
     public async Task<Candle[]> GetCandles(string instrument, string granularity = null,
-        string price = null, int count = 500, DateTime fromDate = default, DateTime toDate = default)
+        string price = null, int count = 500, DateTime fromDate = default, DateTime toDate = default,
+        CancellationToken cancellationToken = default)
     {
-        var endpoint = BuildCandlesEndpoint(instrument, granularity, price, count,
-            fromDate, toDate);
+        var endpoint = BuildCandlesEndpoint(instrument, granularity, price, count, fromDate, toDate);
 
-        var response = await GetAsync<CandleResponse>(endpoint);
+        var response = await SendAsync<CandleResponse>(HttpMethod.Get, endpoint, cancellationToken: cancellationToken);
 
-        return response.StatusCode.IsSuccessStatusCode()
+        return response.StatusCode.IsSuccessStatusCode() && response.Value?.Candles is not null
             ? response.Value.Candles.MapToCandles()
             : [];
     }
 
-    public async Task<DateTime> GetLastCandleTime(string instrument, string granularity = null)
+    public async Task<DateTime> GetLastCandleTime(string instrument, string granularity = null,
+        CancellationToken cancellationToken = default)
     {
         var endpoint = BuildCandlesEndpoint(instrument, granularity, count: 1);
 
-        var response = await GetAsync<CandleResponse>(endpoint);
+        var response = await SendAsync<CandleResponse>(HttpMethod.Get, endpoint, cancellationToken: cancellationToken);
 
-        return response.StatusCode.IsSuccessStatusCode()
-            ? response.Value.Candles.Last().Time
+        return response.StatusCode.IsSuccessStatusCode() && response.Value?.Candles is { Length: > 0 } candles
+            ? candles[^1].Time
             : default;
     }
 
-    public async Task<OrderFilledResponse> PlaceTrade(Order order)
+    public async Task<OrderFilledResponse> PlaceTrade(Order order, CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/orders";
 
         var orderRequest = new OrderRequest(order);
 
-        var response = await PostAsync<OrderFilledResponse>(endpoint, orderRequest, "orderFillTransaction");
+        var response = await SendAsync<OrderFilledResponse>(HttpMethod.Post, endpoint, orderRequest,
+            "orderFillTransaction", cancellationToken);
 
         return response.StatusCode.IsSuccessStatusCode()
             ? response.Value
             : null;
     }
 
-    public async Task<bool> UpdateTrade(OrderUpdate update, string tradeId)
+    public async Task<bool> UpdateTrade(OrderUpdate update, string tradeId, CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/trades/{tradeId}/orders";
 
-        var response = await PutAsync<OrderUpdatedResponse>(endpoint, update);
+        var response = await SendAsync<OrderUpdatedResponse>(HttpMethod.Put, endpoint, update,
+            cancellationToken: cancellationToken);
 
         return response.StatusCode.IsSuccessStatusCode() && response.Value is not null;
     }
 
-    public async Task<bool> CloseTrade(string tradeId)
+    public async Task<bool> CloseTrade(string tradeId, CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/trades/{tradeId}/close";
 
-        var response = await PutAsync<OrderFilledResponse>(endpoint, dataKey: "orderFillTransaction");
+        var response = await SendAsync<OrderFilledResponse>(HttpMethod.Put, endpoint, dataKey: "orderFillTransaction",
+            cancellationToken: cancellationToken);
 
         return response.StatusCode.IsSuccessStatusCode() && response.Value is not null;
     }
 
-    public async Task<TradeResponse[]> GetOpenTrades()
+    public async Task<TradeResponse[]> GetOpenTrades(CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/openTrades";
 
-        var response = await GetAsync<TradeResponse[]>(endpoint, "trades");
+        var response = await SendAsync<TradeResponse[]>(HttpMethod.Get, endpoint, dataKey: "trades",
+            cancellationToken: cancellationToken);
 
-        return response.StatusCode.IsSuccessStatusCode()
+        return response.StatusCode.IsSuccessStatusCode() && response.Value is not null
             ? response.Value
             : [];
     }
 
-    public async Task<TradeResponse> GetTrade(string tradeId)
+    public async Task<TradeResponse> GetTrade(string tradeId, CancellationToken cancellationToken = default)
     {
         var endpoint = $"accounts/{_accountId}/trades/{tradeId}";
 
-        var response = await GetAsync<TradeResponse>(endpoint, "trade");
+        var response = await SendAsync<TradeResponse>(HttpMethod.Get, endpoint, dataKey: "trade",
+            cancellationToken: cancellationToken);
 
         return response.StatusCode.IsSuccessStatusCode()
             ? response.Value
@@ -277,7 +209,7 @@ public class OandaApiService
     {
         var endpoint = $"accounts/{_accountId}/instruments";
 
-        if (instruments != null)
+        if (!string.IsNullOrEmpty(instruments))
         {
             endpoint += $"?instruments={instruments}";
         }
@@ -288,29 +220,18 @@ public class OandaApiService
     private static string BuildCandlesEndpoint(string instrument, string granularity = null,
         string price = null, int count = 500, DateTime fromDate = default, DateTime toDate = default)
     {
-        var endpoint = $"instruments/{instrument}/candles";
+        var candleGranularity = string.IsNullOrEmpty(granularity) ? DefaultGranularity : granularity;
 
-        if (!string.IsNullOrEmpty(granularity))
-        {
-            endpoint += $"?granularity={granularity}";
-        }
-        else
-        {
-            endpoint += $"?granularity={DefaultGranularity}";
-        }
+        var candlePrice = string.IsNullOrEmpty(price) ? DefaultPrice : price;
 
-        if (!string.IsNullOrEmpty(price))
-        {
-            endpoint += $"&price={price}";
-        }
-        else
-        {
-            endpoint += $"&price={DefaultPrice}";
-        }
+        var endpoint =
+            $"instruments/{instrument}/candles?granularity={candleGranularity}&price={candlePrice}";
 
         if (fromDate != default && toDate != default)
         {
-            endpoint += $"&from={fromDate:O}&to{toDate:O}&count=5000";
+            var from = Uri.EscapeDataString(fromDate.ToUniversalTime().ToString("o"));
+            var to = Uri.EscapeDataString(toDate.ToUniversalTime().ToString("o"));
+            endpoint += $"&from={from}&to={to}";
         }
         else
         {
