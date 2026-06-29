@@ -32,7 +32,14 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddSingleton<LiveTradeCache>();
 
-        services.AddHostedService<TradeManager>();
+        if (tradeConfiguration.PairsTrading)
+        {
+            services.AddHostedService<PairsTradeManager>();
+        }
+        else
+        {
+            services.AddHostedService<TradeManager>();
+        }
 
         services.AddHostedService<StreamProcessor>();
 
