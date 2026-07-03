@@ -6,7 +6,7 @@ public class TrendBreakoutHandler : IRequestHandler<TrendBreakoutRequest, IResul
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
 
-        var maxSpread = request.MaxSpread ?? 0.0003m;
+        var maxSpread = request.MaxSpread ?? 0.0004m;
 
         var riskReward = request.RiskReward ?? 1;
 
@@ -22,7 +22,7 @@ public class TrendBreakoutHandler : IRequestHandler<TrendBreakoutRequest, IResul
 
             var granularity = file.FileName[(file.FileName.LastIndexOf('_') + 1)..file.FileName.IndexOf('.')];
 
-            var nextCandle = candles.CalcZScorePullBack();
+            var nextCandle = candles.CalcTrendBreakout(request.Window, maxSpread, riskReward);
 
             var fileName = $"TrendBreakout_{instrument}_{granularity}";
 

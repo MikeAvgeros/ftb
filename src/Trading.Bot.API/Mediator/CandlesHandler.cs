@@ -1,14 +1,7 @@
 ﻿namespace Trading.Bot.API.Mediator;
 
-public sealed class CandlesHandler : IRequestHandler<CandlesRequest, IResult>
+public sealed class CandlesHandler(OandaApiService apiService) : IRequestHandler<CandlesRequest, IResult>
 {
-    private readonly OandaApiService _apiService;
-
-    public CandlesHandler(OandaApiService apiService)
-    {
-        _apiService = apiService;
-    }
-
     public async Task<IResult> Handle(CandlesRequest request, CancellationToken cancellationToken)
     {
         if (!request.Currencies.Contains(','))
@@ -44,7 +37,7 @@ public sealed class CandlesHandler : IRequestHandler<CandlesRequest, IResult>
         {
             foreach (var granularity in granularities)
             {
-                var candles = (await _apiService.GetCandles(
+                var candles = (await apiService.GetCandles(
                         instrument, granularity, request.Price, count, fromDate, toDate)).ToList();
 
                 if (candles.Count == 0) continue;
@@ -53,7 +46,7 @@ public sealed class CandlesHandler : IRequestHandler<CandlesRequest, IResult>
                 {
                     while (candles.Last().Time < toDate)
                     {
-                        candles.AddRange(await _apiService.GetCandles(
+                        candles.AddRange(await apiService.GetCandles(
                             instrument, request.Granularity, request.Price, count, candles.Last().Time, toDate));
                     }
 
