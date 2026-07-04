@@ -2,9 +2,9 @@ namespace Trading.Bot.API.Extensions;
 
 public static class StrategyServiceCollectionExtensions
 {
-    public static IServiceCollection AddSimulationStrategies(this IServiceCollection services)
+    public static void AddSimulationStrategies(this IServiceCollection services)
     {
-        return services
+        services
             .AddSingleton<IStrategy, MaCrossStrategy>()
             .AddSingleton<IStrategy, RsiEmaStrategy>()
             .AddSingleton<IStrategy, MacdEmaStrategy>()
