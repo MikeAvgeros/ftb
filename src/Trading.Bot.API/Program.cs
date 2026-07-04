@@ -38,6 +38,8 @@ builder.Services.AddMediatR(c =>
     c.RegisterServicesFromAssemblyContaining<Program>();
 });
 
+builder.Services.AddSimulationStrategies();
+
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen();

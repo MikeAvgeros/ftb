@@ -31,14 +31,14 @@ public sealed class CandlesHandler(OandaApiService apiService) : IRequestHandler
 
         if (!DateTime.TryParse(request.ToDate, out var toDate)) toDate = default;
 
-        var count = int.TryParse(request.Count, out var _count) ? _count : 500;
+        var count = int.TryParse(request.Count, out var parsedCount) ? parsedCount : 500;
 
         await Parallel.ForEachAsync(instruments, parallelOptions, async (instrument, _) =>
         {
             foreach (var granularity in granularities)
             {
                 var candles = (await apiService.GetCandles(
-                        instrument, granularity, request.Price, count, fromDate, toDate)).ToList();
+                        instrument, granularity, request.Price, count, fromDate, toDate, _)).ToList();
 
                 if (candles.Count == 0) continue;
 
@@ -47,7 +47,7 @@ public sealed class CandlesHandler(OandaApiService apiService) : IRequestHandler
                     while (candles.Last().Time < toDate)
                     {
                         candles.AddRange(await apiService.GetCandles(
-                            instrument, request.Granularity, request.Price, count, candles.Last().Time, toDate));
+                            instrument, request.Granularity, request.Price, count, candles.Last().Time, toDate, _));
                     }
 
                     if (candles.Last().Time > toDate) candles.RemoveAll(c => c.Time > toDate);
