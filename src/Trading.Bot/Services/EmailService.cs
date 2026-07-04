@@ -1,23 +1,14 @@
 ﻿namespace Trading.Bot.Services;
 
-public class EmailService
+public class EmailService(EmailConfiguration emailConfig, ILogger<EmailService> logger)
 {
-    private readonly EmailConfiguration _emailConfig;
-    private readonly ILogger<EmailService> _logger;
-
-    public EmailService(EmailConfiguration emailConfig, ILogger<EmailService> logger)
-    {
-        _emailConfig = emailConfig;
-        _logger = logger;
-    }
-
     public async Task SendMailAsync(EmailData emailData)
     {
         try
         {
             using var emailMessage = new MimeMessage();
 
-            var emailFrom = new MailboxAddress(_emailConfig.UserName, _emailConfig.From);
+            var emailFrom = new MailboxAddress(emailConfig.UserName, emailConfig.From);
 
             emailMessage.From.Add(emailFrom);
 
@@ -36,10 +27,10 @@ public class EmailService
 
             using var mailClient = new SmtpClient();
 
-            await mailClient.ConnectAsync(_emailConfig.SmtpServer, _emailConfig.Port,
+            await mailClient.ConnectAsync(emailConfig.SmtpServer, emailConfig.Port,
                 MailKit.Security.SecureSocketOptions.StartTls);
 
-            await mailClient.AuthenticateAsync(_emailConfig.UserName, _emailConfig.Password);
+            await mailClient.AuthenticateAsync(emailConfig.UserName, emailConfig.Password);
 
             await mailClient.SendAsync(emailMessage);
 
@@ -47,7 +38,7 @@ public class EmailService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send an email.");
+            logger.LogError(ex, "Failed to send an email.");
         }
     }
 }

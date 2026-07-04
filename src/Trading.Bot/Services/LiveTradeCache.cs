@@ -1,8 +1,9 @@
-﻿namespace Trading.Bot.Services;
+namespace Trading.Bot.Services;
 
 public class LiveTradeCache
 {
-    public readonly Dictionary<string, LivePrice> LivePrices = [];
+    public readonly ConcurrentDictionary<string, LivePrice> LivePrices = new();
 
-    public readonly Channel<LivePrice> LivePriceChannel = Channel.CreateUnbounded<LivePrice>();
+    public readonly Channel<LivePrice> LivePriceChannel = Channel.CreateUnbounded<LivePrice>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 }

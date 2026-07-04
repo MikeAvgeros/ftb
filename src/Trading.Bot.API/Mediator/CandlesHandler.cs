@@ -1,14 +1,7 @@
 ﻿namespace Trading.Bot.API.Mediator;
 
-public sealed class CandlesHandler : IRequestHandler<CandlesRequest, IResult>
+public sealed class CandlesHandler(OandaApiService apiService) : IRequestHandler<CandlesRequest, IResult>
 {
-    private readonly OandaApiService _apiService;
-
-    public CandlesHandler(OandaApiService apiService)
-    {
-        _apiService = apiService;
-    }
-
     public async Task<IResult> Handle(CandlesRequest request, CancellationToken cancellationToken)
     {
         if (!request.Currencies.Contains(','))
@@ -38,14 +31,14 @@ public sealed class CandlesHandler : IRequestHandler<CandlesRequest, IResult>
 
         if (!DateTime.TryParse(request.ToDate, out var toDate)) toDate = default;
 
-        var count = int.TryParse(request.Count, out var _count) ? _count : 500;
+        var count = int.TryParse(request.Count, out var parsedCount) ? parsedCount : 500;
 
         await Parallel.ForEachAsync(instruments, parallelOptions, async (instrument, _) =>
         {
             foreach (var granularity in granularities)
             {
-                var candles = (await _apiService.GetCandles(
-                        instrument, granularity, request.Price, count, fromDate, toDate)).ToList();
+                var candles = (await apiService.GetCandles(
+                        instrument, granularity, request.Price, count, fromDate, toDate, _)).ToList();
 
                 if (candles.Count == 0) continue;
 
@@ -53,8 +46,8 @@ public sealed class CandlesHandler : IRequestHandler<CandlesRequest, IResult>
                 {
                     while (candles.Last().Time < toDate)
                     {
-                        candles.AddRange(await _apiService.GetCandles(
-                            instrument, request.Granularity, request.Price, count, candles.Last().Time, toDate));
+                        candles.AddRange(await apiService.GetCandles(
+                            instrument, request.Granularity, request.Price, count, candles.Last().Time, toDate, _));
                     }
 
                     if (candles.Last().Time > toDate) candles.RemoveAll(c => c.Time > toDate);

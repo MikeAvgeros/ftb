@@ -136,7 +136,7 @@ public static class BackTestingExtensions
 
                 using var entryStream = zipEntry.Open();
 
-                var fileStream = new MemoryStream(file.Value.GetCsvBytes());
+                using var fileStream = new MemoryStream(file.Value.GetCsvBytes());
 
                 fileStream.CopyTo(entryStream);
             }
@@ -292,11 +292,9 @@ public static class BackTestingExtensions
         {
             UpdateTrade(trade, indicator);
 
-            if (ShouldUpdateStopLoss(updateTrade, trade, indicator))
+            if (updateTrade && trade.Running)
             {
-                trade.StopLoss = trade.Signal == Signal.Buy
-                    ? trade.TriggerPrice + indicator.Candle.Spread
-                    : trade.TriggerPrice - indicator.Candle.Spread;
+                ApplyTrailingStop(trade, indicator);
             }
 
             if (trade.Running) continue;
@@ -304,13 +302,46 @@ public static class BackTestingExtensions
             closedTrades.Add(trade);
         }
     }
+    
+    private static void ApplyTrailingStop(TradeResult trade, IndicatorResult indicator)
+    {
+        var currentValue = trade.Signal == Signal.Buy
+            ? indicator.Candle.Ask_C
+            : indicator.Candle.Bid_C;
+
+        if (trade.TrailingDistance is null)
+        {
+            if (!IsCloserToTakeProfitThanEntry(trade, currentValue)) return;
+
+            trade.TrailingDistance = Math.Abs(currentValue - trade.TriggerPrice) - indicator.Candle.Spread;
+        }
+
+        var trailingStop = trade.Signal == Signal.Buy
+            ? currentValue - trade.TrailingDistance.Value
+            : currentValue + trade.TrailingDistance.Value;
+
+        trade.StopLoss = trade.Signal == Signal.Buy
+            ? Math.Max(trade.StopLoss, trailingStop)
+            : Math.Min(trade.StopLoss, trailingStop);
+    }
+
+    private static bool IsCloserToTakeProfitThanEntry(TradeResult trade, decimal currentValue)
+    {
+        var distanceToEntry = Math.Abs(currentValue - trade.TriggerPrice);
+
+        var distanceToTakeProfit = Math.Abs(currentValue - trade.TakeProfit);
+
+        return distanceToTakeProfit < distanceToEntry;
+    }
 
     private static void UpdatePairsTrade(PairsIndicatorResult indicator, List<PairTradeResult> openTrades,
         List<PairTradeResult> closedTrades, int tradeRisk)
     {
+        var shouldExit = ShouldExitPairsTrade(openTrades, indicator, tradeRisk);
+
         foreach (var trade in openTrades)
         {
-            if (ShouldExitPairsTrade(openTrades, indicator, tradeRisk))
+            if (shouldExit)
             {
                 trade.Running = false;
                 trade.EndTime = indicator.CandleA.Time;
@@ -334,7 +365,8 @@ public static class BackTestingExtensions
 
             if (indicator.Candle.Bid_L <= trade.StopLoss && indicator.Candle.Bid_H < trade.TakeProfit)
             {
-                CloseTrade(trade, GetLossResult(trade), indicator.Candle.Time, indicator.Candle.Bid_L);
+                CloseTrade(trade, GetLossResult(trade, indicator.Candle.Bid_L), indicator.Candle.Time,
+                    indicator.Candle.Bid_L);
             }
 
             if (indicator.Candle.Bid_L <= trade.StopLoss && indicator.Candle.Bid_H >= trade.TakeProfit)
@@ -352,7 +384,8 @@ public static class BackTestingExtensions
 
             if (indicator.Candle.Ask_H >= trade.StopLoss && indicator.Candle.Ask_L > trade.TakeProfit)
             {
-                CloseTrade(trade, GetLossResult(trade), indicator.Candle.Time, indicator.Candle.Ask_H);
+                CloseTrade(trade, GetLossResult(trade, indicator.Candle.Ask_H), indicator.Candle.Time,
+                    indicator.Candle.Ask_H);
             }
 
             if (indicator.Candle.Ask_H >= trade.StopLoss && indicator.Candle.Ask_L <= trade.TakeProfit)
@@ -361,59 +394,46 @@ public static class BackTestingExtensions
             }
         }
     }
-
-    private static bool ShouldUpdateStopLoss(bool updateTrade, TradeResult trade, IndicatorResult indicator)
+    
+    private static int GetLossResult(TradeResult trade, decimal exitPrice)
     {
-        var priceList = new List<decimal> { trade.TriggerPrice, trade.TakeProfit };
+        var realisedPl = trade.Signal == Signal.Buy
+            ? exitPrice - trade.TriggerPrice
+            : trade.TriggerPrice - exitPrice;
 
-        var currentValue = trade.Signal == Signal.Buy
-            ? indicator.Candle.Ask_C
-            : indicator.Candle.Bid_C;
-
-        var closest = priceList.OrderBy(value => Math.Abs(currentValue - value)).First();
-
-        var currentStop = trade.Signal == Signal.Buy
-            ? trade.StopLoss - trade.TriggerPrice
-            : trade.TriggerPrice - trade.StopLoss;
-
-
-        return updateTrade && trade.Running && currentStop < 0 && trade.TakeProfit - closest == 0;
-    }
-
-    private static int GetLossResult(TradeResult trade)
-    {
-        var stoppedPrice = trade.Signal == Signal.Buy
-            ? trade.StopLoss - trade.TriggerPrice
-            : trade.TriggerPrice - trade.StopLoss;
-
-        if (stoppedPrice >= 0) return 1;
+        if (realisedPl >= 0) return 1;
 
         return -1;
     }
 
-    private static void CloseTrade(TradeResult trade, decimal result, DateTime endTime, decimal triggerPrice)
+    private static void CloseTrade(TradeResult trade, decimal result, DateTime endTime, decimal exitPrice)
     {
         trade.Running = false;
-        trade.Result = Math.Round(GetAccurateResult(result, trade, triggerPrice), 2);
+        trade.Result = Math.Round(GetAccurateResult(result, trade, exitPrice), 2);
         trade.EndTime = endTime;
-        trade.TriggerPrice = triggerPrice;
+        trade.TriggerPrice = exitPrice;
     }
 
-    private static decimal GetAccurateResult(decimal result, TradeResult trade, decimal triggerPrice)
+    private static decimal GetAccurateResult(decimal result, TradeResult trade, decimal exitPrice)
     {
         if (result <= 0) return result;
 
-        return trade.Signal switch
-        {
-            Signal.Buy => triggerPrice >= trade.TakeProfit ? 1 : GetDistance(triggerPrice, trade.TakeProfit),
-            Signal.Sell => triggerPrice <= trade.TakeProfit ? 1 : GetDistance(triggerPrice, trade.TakeProfit),
-            _ => result
-        };
-    }
+        var reachedTakeProfit = trade.Signal == Signal.Buy
+            ? exitPrice >= trade.TakeProfit
+            : exitPrice <= trade.TakeProfit;
 
-    private static decimal GetDistance(decimal triggerPrice, decimal takeProfit)
+        return reachedTakeProfit ? 1 : GetDistance(trade.TriggerPrice, exitPrice, trade.TakeProfit);
+    }
+    
+    private static decimal GetDistance(decimal entryPrice, decimal exitPrice, decimal takeProfit)
     {
-        return Math.Abs(triggerPrice - takeProfit) / ((triggerPrice + takeProfit) / 2) * 100;
+        var targetDistance = Math.Abs(takeProfit - entryPrice);
+
+        if (targetDistance == 0) return 1;
+
+        var achievedDistance = Math.Abs(exitPrice - entryPrice);
+
+        return Math.Clamp(achievedDistance / targetDistance, 0, 1);
     }
 
     private static SimulationSummary CalcSimSummary(IndicatorResult[] indicators, int tradeRisk, decimal riskReward,
@@ -430,21 +450,21 @@ public static class BackTestingExtensions
             TradeRisk = tradeRisk
         };
 
-        summary.WinRate = Math.Round((double)summary.Wins * 100 / (summary.Trades - summary.Unknown), 2);
+        summary.WinRate = CalcWinRate(summary.Wins, summary.Trades - summary.Unknown);
 
         var buyWins = closedTrades.Count(t => t.Result > 0 && t.Signal == Signal.Buy);
 
         var buyTrades = closedTrades.Count(t => t.Result != 0 && t.Signal == Signal.Buy);
 
-        summary.BuyWinRate = Math.Round((double)buyWins * 100 / buyTrades, 2);
+        summary.BuyWinRate = CalcWinRate(buyWins, buyTrades);
 
         var sellWins = closedTrades.Count(t => t.Result > 0 && t.Signal == Signal.Sell);
 
         var sellTrades = closedTrades.Count(t => t.Result != 0 && t.Signal == Signal.Sell);
 
-        summary.SellWinRate = Math.Round((double)sellWins * 100 / sellTrades, 2);
+        summary.SellWinRate = CalcWinRate(sellWins, sellTrades);
 
-        var winResultSum = Math.Round(closedTrades.Where(t => t.Result > 0).Sum(t => t.Result));
+        var winResultSum = closedTrades.Where(t => t.Result > 0).Sum(t => t.Result);
 
         summary.Balance = (double)Math.Round(winResultSum * tradeRisk * riskReward - summary.Losses * tradeRisk, 2);
 
@@ -464,15 +484,20 @@ public static class BackTestingExtensions
             TradeRisk = tradeRisk
         };
 
-        summary.WinRate = Math.Round((double)summary.Wins * 100 / (summary.Trades - summary.Unknown), 2);
+        summary.WinRate = CalcWinRate(summary.Wins, summary.Trades - summary.Unknown);
 
-        var winResultSum = Math.Round(closedTrades.Where(t => t.Result == 1).Sum(t => t.Result));
+        var winResultSum = closedTrades.Where(t => t.Result == 1).Sum(t => t.Result);
 
         summary.Balance = (double)Math.Round(winResultSum * tradeRisk - summary.Losses * tradeRisk, 2);
 
         return summary;
     }
-    
+
+    private static double CalcWinRate(int wins, int decidedTrades)
+    {
+        return decidedTrades == 0 ? 0 : Math.Round((double)wins * 100 / decidedTrades, 2);
+    }
+
     private static bool ShouldExitPairsTrade(List<PairTradeResult> openTrades, PairsIndicatorResult indicator,
         int tradeRisk)
     {

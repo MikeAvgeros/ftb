@@ -1,24 +1,26 @@
-namespace Trading.Bot.API.Mediator;
+namespace Trading.Bot.API.Mediator.Strategies;
 
-public class PairsTradingHandler : IRequestHandler<PairsTradingRequest, IResult>
+public sealed class PairsTradingStrategy : IStrategy
 {
-    public Task<IResult> Handle(PairsTradingRequest request, CancellationToken cancellationToken)
+    public StrategyType Type => StrategyType.PairsTrading;
+
+    public IResult Run(RunStrategyRequest request)
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
-
-        var tradeRisk = request.TradeRisk ?? 20;
-
+        
         var maxSpread = request.MaxSpread ?? 0.0004m;
+        var tradeRisk = request.TradeRisk ?? 10;
 
         if (request.Files.Count != 2) throw new ArgumentException("Strategy works with 2 pairs.");
 
         var pairA = request.Files[0].GetObjectFromCsv<Candle>();
-
         var pairB = request.Files[1].GetObjectFromCsv<Candle>();
 
         if (pairA.Length == 0 || pairB.Length == 0) throw new ArgumentException("Candles are required.");
+        
+        var window = request.GetInt(0, 50);
 
-        var result = pairA.CalcReturnSpreadZScore(pairB, request.Window, maxSpread);
+        var result = pairA.CalcReturnSpreadZScore(pairB, window, maxSpread);
 
         var instruments = string.Join("",
             request.Files[0].FileName[..request.Files[0].FileName.LastIndexOf('_')].Concat(
@@ -31,15 +33,6 @@ public class PairsTradingHandler : IRequestHandler<PairsTradingRequest, IResult>
 
         fileData.AddRange(result.GetFileData(fileName, tradeRisk));
 
-        return Task.FromResult(Results.File(fileData.GetZipFromFileData(),
-            "application/octet-stream", "PairsTrading.zip"));
+        return Results.File(fileData.GetZipFromFileData(), "application/octet-stream", "PairsTrading.zip");
     }
-}
-
-public record PairsTradingRequest : IHttpRequest
-{
-    public IFormFileCollection Files { get; set; } = new FormFileCollection();
-    public int Window { get; set; }
-    public int? TradeRisk { get; set; }
-    public decimal? MaxSpread { get; set; }
 }
