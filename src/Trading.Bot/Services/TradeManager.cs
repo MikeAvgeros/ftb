@@ -119,8 +119,10 @@ public class TradeManager : BackgroundService
     {
         var granularities = new[] { settings.MainGranularity }.Concat(settings.OtherGranularities);
 
+        var candlesToFetch = settings.Integers.Max() + AdditionalCandles;
+
         var candles = await Task.WhenAll(granularities.Select(g =>
-            _apiService.GetCandles(settings.Instrument, g, count: settings.Integers.Max() + AdditionalCandles)));
+            _apiService.GetCandles(settings.Instrument, g, count: candlesToFetch)));
 
         if (candles.Length == 0 || candles.Any(c => c.Length == 0))
         {
@@ -131,8 +133,7 @@ public class TradeManager : BackgroundService
         var calcResults = candles.Select(c =>
                 c.CalcTrendConfluence(emaFast: settings.Integers[0], emaMed: settings.Integers[1],
                     emaSlow: settings.Integers[2], maxSpread: settings.MaxSpread, riskReward: settings.RiskReward)
-                .Last())
-            .ToArray();
+                .Last()).ToArray();
         
         var currentIndicator = calcResults[0];
 
