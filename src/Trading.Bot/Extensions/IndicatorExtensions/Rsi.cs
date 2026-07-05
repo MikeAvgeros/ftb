@@ -2,64 +2,102 @@
 
 public static partial class Indicator
 {
-    public static RsiResult[] CalcRsi(this Candle[] candles, int window = 14)
+    private static RsiResult[] CalcRsi(this Candle[] candles, int window = 14)
     {
         var length = candles.Length;
-
-        var gains = new double[length];
-
-        var losses = new double[length];
-
-        var lastValue = 0.0;
-
-        for (var i = 0; i < length; i++)
-        {
-            var value = (double)candles[i].Mid_C;
-
-            if (i == 0)
-            {
-                gains[i] = 0.0;
-
-                losses[i] = 0.0;
-
-                lastValue = value;
-
-                continue;
-            }
-
-            gains[i] = value > lastValue ? value - lastValue : 0.0;
-
-            losses[i] = value < lastValue ? lastValue - value : 0.0;
-
-            lastValue = value;
-        }
-
-        var gainsRma = gains.CalcRma(window).ToArray();
-
-        var lossesRma = losses.CalcRma(window).ToArray();
-
+        
         var result = new RsiResult[length];
 
+        if (length == 0)
+        {
+            return result;
+        }
+        
+        Span<double> gains = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+        
+        Span<double> losses = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+
+        var lastValue = (double)candles[0].Mid_C;
+
+        for (var i = 1; i < length; i++)
+        {
+            var value = (double)candles[i].Mid_C;
+            
+            gains[i] = value > lastValue ? value - lastValue : 0.0;
+            
+            losses[i] = value < lastValue ? lastValue - value : 0.0;
+            
+            lastValue = value;
+        }
+        
+        var alpha = 1.0 / window;
+        
+        var sumGain = 0.0;
+        
+        var sumLoss = 0.0;
+
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new RsiResult();
-
-            result[i].Candle = candles[i];
-
-            result[i].AverageGain = gainsRma[i];
-
-            result[i].AverageLoss = lossesRma[i];
-
-            if (i > 0)
+            if (i < window)
             {
-                var rs = result[i].AverageGain / result[i].AverageLoss;
+                sumGain += gains[i];
+                
+                sumLoss += losses[i];
 
-                result[i].Rsi = 100.0 - 100.0 / (1.0 + rs);
+                var rsiValue = double.NaN;
+                
+                if (i == window - 1)
+                {
+                    sumGain /= window;
+                    
+                    sumLoss /= window;
+                    
+                    if (sumLoss == 0.0)
+                    {
+                        rsiValue = sumGain == 0.0 ? 50.0 : 100.0;
+                    }
+                    else
+                    {
+                        var rs = sumGain / sumLoss;
+                        
+                        rsiValue = 100.0 - (100.0 / (1.0 + rs));
+                    }
+                }
+
+                result[i] = new RsiResult
+                {
+                    Candle = candles[i],
+                    AverageGain = i == window - 1 ? sumGain : 0.0,
+                    AverageLoss = i == window - 1 ? sumLoss : 0.0,
+                    Rsi = rsiValue
+                };
+                
+                continue;
+            }
+            
+            sumGain = alpha * gains[i] + (1.0 - alpha) * sumGain;
+            
+            sumLoss = alpha * losses[i] + (1.0 - alpha) * sumLoss;
+
+            double rsi;
+            
+            if (sumLoss == 0.0)
+            {
+                rsi = sumGain == 0.0 ? 50.0 : 100.0; 
             }
             else
             {
-                result[i].Rsi = 0.0;
+                var rs = sumGain / sumLoss;
+                rsi = 100.0 - (100.0 / (1.0 + rs));
             }
+
+            result[i] = new RsiResult
+            {
+                Candle = candles[i],
+                AverageGain = sumGain,
+                AverageLoss = sumLoss,
+                Rsi = rsi
+            };
         }
 
         return result;

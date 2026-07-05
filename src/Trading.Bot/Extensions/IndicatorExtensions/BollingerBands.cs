@@ -2,29 +2,54 @@
 
 public static partial class Indicator
 {
-    public static BollingerBandsResult[] CalcBollingerBands(this Candle[] candles, int window = 20, double stdDev = 2)
+    private static BollingerBandsResult[] CalcBollingerBands(this Candle[] candles, int window = 20, double stdDev = 2)
     {
-        var typicalPrice = candles.Select(c => (double)(c.Mid_C + c.Mid_H + c.Mid_L) / 3).ToArray();
-
-        var rolStdDev = typicalPrice.CalcRolStdDev(window).ToArray();
-
-        var sma = typicalPrice.CalcSma(window).ToArray();
-
         var length = candles.Length;
 
         var result = new BollingerBandsResult[length];
+        
+        if (length == 0)
+        {
+            return result;
+        }
+
+        Span<double> typicalPrice = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
 
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new BollingerBandsResult();
+            var candle = candles[i];
 
-            result[i].Candle = candles[i];
+            typicalPrice[i] = (double)(candle.Mid_C + candle.Mid_H + candle.Mid_L) / 3;
+        }
 
-            result[i].Sma = sma[i];
+        var rolStdDev = typicalPrice.CalcRolStdDev(window);
 
-            result[i].UpperBand = sma[i] + rolStdDev[i] * stdDev;
+        var sma = typicalPrice.CalcSma(window);
 
-            result[i].LowerBand = sma[i] - rolStdDev[i] * stdDev;
+        for (var i = 0; i < length; i++)
+        {
+            if (i < window - 1)
+            {
+                result[i] = new BollingerBandsResult
+                {
+                    Candle = candles[i],
+                    Sma = sma[i],
+                    UpperBand = 0.0,
+                    LowerBand = 0.0
+                };
+                
+                continue;
+            }
+            
+            var band = rolStdDev[i] * stdDev;
+
+            result[i] = new BollingerBandsResult
+            {
+                Candle = candles[i],
+                Sma = sma[i],
+                UpperBand = sma[i] + band,
+                LowerBand = sma[i] - band
+            };
         }
 
         return result;

@@ -2,67 +2,108 @@
 
 public static partial class Indicator
 {
-    public static StochasticResult[] CalcStochastic(this Candle[] candles, int window = 14, int smoothK = 1, int smoothD = 3)
+    private static StochasticResult[] CalcStochastic(this Candle[] candles, int window = 14, int smoothK = 1, int smoothD = 3)
     {
         var length = candles.Length;
-
+        
         var result = new StochasticResult[length];
+        
+        if (length == 0)
+        {
+            return result;
+        }
+        
+        Span<int> maxDeque = length <= MaxStackAlloc ? stackalloc int[length] : new int[length];
+        
+        Span<int> minDeque = length <= MaxStackAlloc ? stackalloc int[length] : new int[length];
+
+        var maxHead = 0; var maxTail = 0;
+        
+        var minHead = 0; var minTail = 0;
 
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new StochasticResult();
+            result[i] = new StochasticResult { Candle = candles[i] };
 
-            if (i < window - 1) continue;
-
-            result[i].Candle = candles[i];
-
-            var lastCandles = new Candle[window];
-
-            Array.Copy(candles[..(i + 1)], i - (window - 1),
-                lastCandles, 0, window);
-
-            var highestPrice = lastCandles.Select(c => c.Mid_C).Max();
-
-            var lowestPrice = lastCandles.Select(c => c.Mid_C).Min();
-
-            result[i].KOscillator = highestPrice - lowestPrice != 0
-                ? (double)(100 * (result[i].Candle.Mid_C - lowestPrice) / (highestPrice - lowestPrice))
-                : 0.0;
-        }
-
-        if (smoothK > 1)
-        {
-            var kOscillators = result.Select(r => r.KOscillator).ToArray();
-
-            var smaK = kOscillators.CalcSma(smoothK).ToArray();
-
-            for (var i = 0; i < length; i++)
+            var currentHigh = (double)candles[i].Mid_H;
+            
+            var currentLow = (double)candles[i].Mid_L;
+            
+            var currentClose = (double)candles[i].Mid_C;
+            
+            while (maxTail > maxHead && (double)candles[maxDeque[maxTail - 1]].Mid_H <= currentHigh)
             {
-                if (i < smoothK - 1)
-                {
-                    result[i].KOscillator = 0.0;
-
-                    continue;
-                }
-
-                result[i].KOscillator = smaK[i];
+                maxTail--;
             }
-        }
-
-        var oscillators = result.Select(r => r.KOscillator).ToArray();
-
-        var smaD = oscillators.CalcSma(smoothD).ToArray();
-
-        for (var i = 0; i < length; i++)
-        {
-            if (i < smoothD - 1)
+            
+            maxDeque[maxTail++] = i;
+            
+            while (minTail > minHead && (double)candles[minDeque[minTail - 1]].Mid_L >= currentLow)
             {
-                result[i].DOscillator = 0.0;
-
+                minTail--;
+            }
+            
+            minDeque[minTail++] = i;
+            
+            while (maxDeque[maxHead] <= i - window) { maxHead++; }
+            
+            while (minDeque[minHead] <= i - window) { minHead++; }
+            
+            if (i < window - 1)
+            {
+                result[i].KOscillator = double.NaN;
                 continue;
             }
 
-            result[i].DOscillator = smaD[i];
+            var highestPrice = (double)candles[maxDeque[maxHead]].Mid_H;
+            
+            var lowestPrice = (double)candles[minDeque[minHead]].Mid_L;
+
+            result[i].KOscillator = highestPrice - lowestPrice != 0
+                ? 100.0 * (currentClose - lowestPrice) / (highestPrice - lowestPrice)
+                : 50.0;
+        }
+        
+        if (smoothK > 1)
+        {
+            Span<double> kOscillators = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+            
+            for (var i = 0; i < length; i++)
+            {
+                kOscillators[i] = result[i].KOscillator;
+            }
+
+            var smaK = kOscillators.CalcSma(smoothK);
+
+            for (var i = 0; i < length; i++)
+            {
+                result[i].KOscillator = i < window - 1 + (smoothK - 1) ? 0.0 : smaK[i];
+            }
+        }
+        
+        Span<double> oscillators = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+        
+        for (var i = 0; i < length; i++)
+        {
+            oscillators[i] = result[i].KOscillator;
+        }
+
+        var smaD = oscillators.CalcSma(smoothD);
+        
+        var totalWarmup = (window - 1) + (smoothK > 1 ? (smoothK - 1) : 0) + (smoothD - 1);
+
+        for (var i = 0; i < length; i++)
+        {
+            if (i < totalWarmup)
+            {
+                result[i].KOscillator = 0.0;
+                
+                result[i].DOscillator = 0.0;
+            }
+            else
+            {
+                result[i].DOscillator = smaD[i];
+            }
         }
 
         return result;

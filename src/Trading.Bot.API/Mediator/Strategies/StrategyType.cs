@@ -10,6 +10,7 @@ public enum StrategyType
     TrendBreakout,
     TrendMomentum,
     TrendPullback,
+    TrendConfluence,
     MikeStrategy,
     EliasStrategy,
     PairsTrading

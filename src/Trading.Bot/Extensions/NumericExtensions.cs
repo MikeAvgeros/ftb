@@ -2,142 +2,140 @@
 
 public static class NumericExtensions
 {
-    public static IEnumerable<double> CalcCma(this double[] sequence)
+    public static double[] CalcCma(this ReadOnlySpan<double> sequence)
     {
-        if (sequence is null)
+        var length = sequence.Length;
+
+        var result = new double[length];
+        
+        if (length == 0)
         {
-            yield break;
+            return result;
         }
 
-        double total = 0;
-
-        var count = 0;
-
-        var length = sequence.Length;
+        double sum = 0;
 
         for (var i = 0; i < length; i++)
         {
-            count++;
-
-            total += sequence[i];
-
-            yield return total / count;
+            sum += sequence[i];
+            
+            result[i] = sum / (i + 1); 
         }
+        
+        return result;
     }
 
-    public static IEnumerable<double> CalcSma(this double[] sequence, int window)
+    public static double[] CalcSma(this ReadOnlySpan<double> sequence, int window)
     {
-        if (sequence is null)
-        {
-            yield break;
-        }
-
         var length = sequence.Length;
 
-        if (length <= window)
+        var result = new double[length];
+        
+        if (length == 0)
         {
-            yield return 0.0;
+            return result;
         }
 
-        var queue = new Queue<double>(window);
+        double sum = 0;
 
         for (var i = 0; i < length; i++)
         {
-            if (queue.Count == window)
+            sum += sequence[i];
+
+            if (i >= window)
             {
-                queue.Dequeue();
+                sum -= sequence[i - window];
             }
 
-            queue.Enqueue(sequence[i]);
+            var count = Math.Min(i + 1, window);
 
-            yield return queue.Average();
+            result[i] = sum / count;
         }
+
+        return result;
     }
 
-    public static IEnumerable<double> CalcEma(this double[] sequence, int window)
+    public static double[] CalcEma(this ReadOnlySpan<double> sequence, int window)
     {
-        if (sequence is null)
-        {
-            yield break;
-        }
-
         var length = sequence.Length;
 
-        if (length <= window)
+        var result = new double[length];
+
+        if (length == 0)
         {
-            yield return 0.0;
+            return result;
         }
 
         var alpha = 2.0 / (window + 1);
 
-        var result = 0.0;
+        result[0] = sequence[0];
 
-        for (var i = 0; i < length; i++)
+        for (var i = 1; i < length; i++)
         {
-            result = i == 0
-                ? sequence[i]
-                : alpha * sequence[i] + (1 - alpha) * result;
-
-            yield return result;
+            result[i] = alpha * sequence[i] + (1 - alpha) * result[i - 1];
         }
+
+        return result;
     }
 
-    public static IEnumerable<double> CalcTema(this double[] sequence, int window)
+    public static double[] CalcTema(this ReadOnlySpan<double> sequence, int window)
     {
-        var ema1 = sequence.CalcEma(window).ToArray();
+        var ema1 = sequence.CalcEma(window);
 
-        var ema2 = ema1.CalcEma(window).ToArray();
+        var ema2 = ema1.CalcEma(window);
 
-        var ema3 = ema2.CalcEma(window).ToArray();
+        var ema3 = ema2.CalcEma(window);
 
         var length = sequence.Length;
 
-        var tema = new double[length];
+        var result = new double[length];
+        
+        if (length == 0)
+        {
+            return result;
+        }
 
         for (var i = 0; i < length; i++)
         {
-            tema[i] = 3.0 * ema1[i] - 3 * ema2[i] + ema3[i];
+            result[i] = 3.0 * ema1[i] - 3 * ema2[i] + ema3[i];
         }
 
-        return tema;
+        return result;
     }
 
-    public static IEnumerable<double> CalcRma(this double[] sequence, int window)
+    public static double[] CalcRma(this ReadOnlySpan<double> sequence, int window)
     {
-        if (sequence is null)
-        {
-            yield break;
-        }
-
         var length = sequence.Length;
 
-        if (length <= window)
+        var result = new double[length];
+
+        if (length == 0)
         {
-            yield return 0.0;
+            return result;
         }
 
         var alpha = 1.0 / window;
 
-        var result = 0.0;
+        result[0] = sequence[0];
 
-        for (var i = 0; i < length; i++)
+        for (var i = 1; i < length; i++)
         {
-            result = i == 0
-                ? sequence[i]
-                : alpha * sequence[i] + (1 - alpha) * result;
-
-            yield return result;
+            result[i] = alpha * sequence[i] + (1 - alpha) * result[i - 1];
         }
+
+        return result;
     }
 
-    public static IEnumerable<double> CalcTrendLine(this double[] sequence)
+    public static double[] CalcTrendLine(this ReadOnlySpan<double> sequence)
     {
-        if (sequence is null)
-        {
-            yield break;
-        }
-
         var length = sequence.Length;
+        
+        var result = new double[length];
+        
+        if (length == 0)
+        {
+            return result;
+        }
 
         double sumX = 0;
 
@@ -164,66 +162,83 @@ public static class NumericExtensions
 
         for (var i = 0; i < length; i++)
         {
-            yield return slope * i + intercept;
+            result[i] = slope * i + intercept;
         }
+        
+        return result;
     }
 
-    public static IEnumerable<double> CalcRolStdDev(this double[] sequence, int window)
+    public static double[] CalcRolStdDev(this ReadOnlySpan<double> sequence, int window)
     {
-        if (sequence is null)
-        {
-            yield break;
-        }
-
         var length = sequence.Length;
 
-        if (length <= window)
+        var result = new double[length];
+        
+        if (length == 0)
         {
-            yield return 0.0;
+            return result;
         }
 
-        var queue = new Queue<double>(window);
-
-        for (var i = 0; i < length; i++)
-        {
-            if (queue.Count == window)
-            {
-                queue.Dequeue();
-            }
-
-            queue.Enqueue(sequence[i]);
-
-            yield return queue.CalcStdDev();
-        }
-    }
-
-    public static double CalcStdDev(this IEnumerable<double> sequence)
-    {
-        if (sequence is null)
-        {
-            return 0.0;
-        }
-
-        var list = sequence.ToArray();
-
-        var length = list.Length;
-
-        if (length <= 1)
-        {
-            return 0.0;
-        }
-
-        var average = list.Average();
+        double sum = 0;
 
         double sumSq = 0;
 
         for (var i = 0; i < length; i++)
         {
-            var value = list[i];
-            sumSq += (value - average) * (value - average);
+            var value = sequence[i];
+
+            sum += value;
+
+            sumSq += value * value;
+
+            if (i >= window)
+            {
+                var outgoing = sequence[i - window];
+
+                sum -= outgoing;
+
+                sumSq -= outgoing * outgoing;
+            }
+
+            var count = Math.Min(i + 1, window);
+
+            var mean = sum / count;
+
+            var variance = Math.Max(sumSq / count - mean * mean, 0.0);
+
+            result[i] = Math.Sqrt(variance);
         }
 
-        return Math.Sqrt(sumSq / length).NaN2Zero();
+        return result;
+    }
+
+    private static double CalcStdDev(this ReadOnlySpan<double> sequence)
+    {
+        var length = sequence.Length;
+
+        if (length == 0)
+        {
+            return 0.0;
+        }
+        
+        double sum = 0;
+        
+        for (var i = 0; i < length; i++)
+        {
+            sum += sequence[i];
+        }
+        var average = sum / length;
+        
+        double sumSq = 0;
+        
+        for (var i = 0; i < length; i++)
+        {
+            var diff = sequence[i] - average;
+            
+            sumSq += diff * diff;
+        }
+        
+        return Math.Sqrt(sumSq / length);
     }
     
     public static double CalcBeta(this double[] sequenceA, double[] sequenceB)
@@ -318,13 +333,6 @@ public static class NumericExtensions
         }
 
         return returns;
-    }
-
-    public static double Round(this double value, int decimalPoints)
-    {
-        var precision = int.Parse("1".PadRight(decimalPoints, '0'));
-
-        return Math.Floor(value * precision) / precision;
     }
 
     private static double NaN2Zero(this double value)

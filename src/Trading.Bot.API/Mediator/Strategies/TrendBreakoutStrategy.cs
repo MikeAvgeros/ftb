@@ -26,7 +26,7 @@ public sealed class TrendBreakoutStrategy : IStrategy
 
             var fileName = $"TrendBreakout_{instrument}_{granularity}";
 
-            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward));
+            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward, true));
         }
 
         return fileData.Count == 0

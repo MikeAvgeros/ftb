@@ -2,34 +2,57 @@
 
 public static partial class Indicator
 {
-    public static MacdResult[] CalcMacd(this Candle[] candles, int shortWindow = 12, int longWindow = 26, int signal = 9)
+    private static MacdResult[] CalcMacd(this Candle[] candles, int shortWindow = 12, int longWindow = 26, int signal = 9)
     {
-        var prices = candles.Select(c => (double)c.Mid_C).ToArray();
-
-        var emaShort = prices.CalcEma(shortWindow).ToArray();
-
-        var emaLong = prices.CalcEma(longWindow).ToArray();
-
         var length = candles.Length;
 
         var result = new MacdResult[length];
 
+        Span<double> prices = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new MacdResult();
-
-            result[i].Candle = candles[i];
-
-            result[i].Macd = emaShort[i] - emaLong[i];
+            prices[i] = (double)candles[i].Mid_C;
         }
 
-        var ema = result.Select(m => m.Macd).ToArray().CalcEma(signal).ToArray();
+        var emaShort = prices.CalcEma(shortWindow);
+
+        var emaLong = prices.CalcEma(longWindow);
+
+        Span<double> macd = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
 
         for (var i = 0; i < length; i++)
         {
+            var value = emaShort[i] - emaLong[i];
+
+            macd[i] = value;
+
+            result[i] = new MacdResult
+            {
+                Candle = candles[i],
+                Macd = value
+            };
+        }
+
+        var ema = macd.CalcEma(signal);
+        
+        var warmupPeriod = longWindow + signal - 2;
+
+        for (var i = 0; i < length; i++)
+        {
+            if (i < warmupPeriod)
+            {
+                result[i].Macd = 0.0;
+                
+                result[i].SignalLine = 0.0;
+                
+                result[i].Histogram = 0.0;
+                continue;
+            }
+            
             result[i].SignalLine = ema[i];
 
-            result[i].Histogram = result[i].Macd - result[i].SignalLine;
+            result[i].Histogram = result[i].Macd - ema[i];
         }
 
         return result;

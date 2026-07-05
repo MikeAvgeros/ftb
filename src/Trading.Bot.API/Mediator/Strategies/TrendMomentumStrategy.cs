@@ -32,7 +32,7 @@ public sealed class TrendMomentumStrategy : IStrategy
 
             var fileName = $"TrendMomentum_{instrument}_{granularity}_{bbWindow}_{emaWindow}_{standardDeviation}";
 
-            fileData.AddRange(bollingerBands.GetFileData(fileName, tradeRisk, riskReward));
+            fileData.AddRange(bollingerBands.GetFileData(fileName, tradeRisk, riskReward, true));
         }
 
         return fileData.Count == 0

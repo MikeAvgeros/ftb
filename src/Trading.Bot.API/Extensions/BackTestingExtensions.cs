@@ -365,8 +365,7 @@ public static class BackTestingExtensions
 
             if (indicator.Candle.Bid_L <= trade.StopLoss && indicator.Candle.Bid_H < trade.TakeProfit)
             {
-                CloseTrade(trade, GetLossResult(trade, indicator.Candle.Bid_L), indicator.Candle.Time,
-                    indicator.Candle.Bid_L);
+                CloseTrade(trade, GetLossResult(trade, trade.StopLoss), indicator.Candle.Time, trade.StopLoss);
             }
 
             if (indicator.Candle.Bid_L <= trade.StopLoss && indicator.Candle.Bid_H >= trade.TakeProfit)
@@ -384,8 +383,7 @@ public static class BackTestingExtensions
 
             if (indicator.Candle.Ask_H >= trade.StopLoss && indicator.Candle.Ask_L > trade.TakeProfit)
             {
-                CloseTrade(trade, GetLossResult(trade, indicator.Candle.Ask_H), indicator.Candle.Time,
-                    indicator.Candle.Ask_H);
+                CloseTrade(trade, GetLossResult(trade, trade.StopLoss), indicator.Candle.Time, trade.StopLoss);
             }
 
             if (indicator.Candle.Ask_H >= trade.StopLoss && indicator.Candle.Ask_L <= trade.TakeProfit)

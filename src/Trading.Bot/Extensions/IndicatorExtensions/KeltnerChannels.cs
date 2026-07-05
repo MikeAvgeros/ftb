@@ -2,29 +2,34 @@
 
 public static partial class Indicator
 {
-    public static KeltnerChannelsResult[] CalcKeltnerChannels(this Candle[] candles, int emaWindow = 20, int atrWindow = 10, double multiplier = 2)
+    private static KeltnerChannelsResult[] CalcKeltnerChannels(this Candle[] candles, int emaWindow = 20, int atrWindow = 10, double multiplier = 2)
     {
-        var prices = candles.Select(c => (double)c.Mid_C).ToArray();
-
-        var ema = prices.CalcEma(emaWindow).ToArray();
-
-        var atr = candles.CalcAtr(atrWindow).ToArray();
-
         var length = candles.Length;
 
         var result = new KeltnerChannelsResult[length];
 
+        var prices = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new KeltnerChannelsResult();
+            prices[i] = (double)candles[i].Mid_C;
+        }
 
-            result[i].Candle = candles[i];
+        var ema = prices.CalcEma(emaWindow);
 
-            result[i].Ema = ema[i];
+        var atr = candles.CalcAtr(atrWindow);
 
-            result[i].UpperBand = atr[i].Atr * multiplier + ema[i];
+        for (var i = 0; i < length; i++)
+        {
+            var band = atr[i].Atr * multiplier;
 
-            result[i].LowerBand = ema[i] - atr[i].Atr * multiplier;
+            result[i] = new KeltnerChannelsResult
+            {
+                Candle = candles[i],
+                Ema = ema[i],
+                UpperBand = band + ema[i],
+                LowerBand = ema[i] - band
+            };
         }
 
         return result;

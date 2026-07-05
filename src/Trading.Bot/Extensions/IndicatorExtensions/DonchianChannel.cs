@@ -2,27 +2,88 @@
 
 public static partial class Indicator
 {
-    public static DonchianChannelResult[] CalcDonchianChannel(this Candle[] candles, int window = 20)
+    private static DonchianChannelResult[] CalcDonchianChannel(this Candle[] candles, int window = 20)
     {
-        var highs = candles.Select(c => c.Mid_H).ToArray();
-
-        var lows = candles.Select(c => c.Mid_L).ToArray();
-
         var length = candles.Length;
 
         var result = new DonchianChannelResult[length];
+        
+        if (length == 0)
+        {
+            return result;
+        }
+        
+        Span<int> maxDeque = length <= MaxStackAlloc ? stackalloc int[length] : new int[length];
+
+        Span<int> minDeque = length <= MaxStackAlloc ? stackalloc int[length] : new int[length];
+
+        var maxHead = 0;
+
+        var maxTail = 0;
+
+        var minHead = 0;
+
+        var minTail = 0;
 
         for (var i = 0; i < length; i++)
         {
-            result[i] ??= new DonchianChannelResult();
+            if (i > 0)
+            {
+                var prevIndex = i - 1;
+                
+                var prevHigh = (double)candles[prevIndex].Mid_H;
+                
+                var prevLow = (double)candles[prevIndex].Mid_L;
+                
+                while (maxTail > maxHead && (double)candles[maxDeque[maxTail - 1]].Mid_H <= prevHigh)
+                {
+                    maxTail--;
+                }
+                
+                maxDeque[maxTail++] = prevIndex;
+                
+                while (minTail > minHead && (double)candles[minDeque[minTail - 1]].Mid_L >= prevLow)
+                {
+                    minTail--;
+                }
+                
+                minDeque[minTail++] = prevIndex;
+            }
 
-            result[i].Candle = candles[i];
+            while (maxTail > maxHead && maxDeque[maxHead] < i - window)
+            {
+                maxHead++;
+            }
 
-            result[i].UpperBand = i >= window ? highs.Take(i).TakeLast(window).Max() : 0;
+            while (minTail > minHead && minDeque[minHead] < i - window)
+            {
+                minHead++;
+            }
 
-            result[i].LowerBand = i >= window ? lows.Take(i).TakeLast(window).Min() : 0;
+            if (i >= window)
+            {
+                var upperBand = candles[maxDeque[maxHead]].Mid_H;
 
-            result[i].MidBand = i >= window ? (result[i].UpperBand + result[i].LowerBand) / 2 : 0;
+                var lowerBand = candles[minDeque[minHead]].Mid_L;
+
+                result[i] = new DonchianChannelResult
+                {
+                    Candle = candles[i],
+                    UpperBand = upperBand,
+                    LowerBand = lowerBand,
+                    MidBand = (upperBand + lowerBand) / 2
+                };
+            }
+            else
+            {
+                result[i] = new DonchianChannelResult
+                {
+                    Candle = candles[i],
+                    UpperBand = 0,
+                    LowerBand = 0,
+                    MidBand = 0
+                };
+            }
         }
 
         return result;

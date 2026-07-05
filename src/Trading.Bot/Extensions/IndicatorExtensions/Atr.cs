@@ -2,36 +2,81 @@
 
 public static partial class Indicator
 {
-    public static AtrResult[] CalcAtr(this Candle[] candles, int window = 14)
+    private static AtrResult[] CalcAtr(this Candle[] candles, int window = 14)
     {
         var length = candles.Length;
-
+        
         var result = new AtrResult[length];
-
-        for (var i = 0; i < length; i++)
+        
+        if (length == 0)
         {
-            result[i] ??= new AtrResult();
-
-            var prevMidC = i == 0 ? candles[i].Mid_C : candles[i - 1].Mid_C;
-
-            var tr1 = candles[i].Mid_H - candles[i].Mid_L;
-
-            var tr2 = Math.Abs(candles[i].Mid_H - prevMidC);
-
-            var tr3 = Math.Abs(prevMidC - candles[i].Mid_L);
-
-            var trueRanges = new[] { tr1, tr2, tr3 };
-
-            result[i].Candle = candles[i];
-
-            result[i].MaxTr = (double)trueRanges.Max();
+            return result;
         }
+        
+        Span<double> maxTr = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
+        
+        for (var i = 0; i < length; i++)
+        {
+            var candle = candles[i];
+            
+            var prevMidC = i == 0 ? candle.Mid_C : candles[i - 1].Mid_C;
 
-        var maxTra = result.Select(x => x.MaxTr).ToArray().CalcSma(window).ToArray();
+            var tr1 = (double)(candle.Mid_H - candle.Mid_L);
+            
+            var tr2 = (double)Math.Abs(candle.Mid_H - prevMidC);
+            
+            var tr3 = (double)Math.Abs(prevMidC - candle.Mid_L);
+
+            maxTr[i] = Math.Max(tr1, Math.Max(tr2, tr3));
+        }
+        
+        var alpha = 1.0 / window;
+        
+        var runningAtr = 0.0;
 
         for (var i = 0; i < length; i++)
         {
-            result[i].Atr = maxTra[i];
+            if (i < window - 1)
+            {
+                result[i] = new AtrResult
+                {
+                    Candle = candles[i],
+                    MaxTr = maxTr[i],
+                    Atr = 0.0
+                };
+                
+                continue;
+            }
+            
+            if (i == window - 1)
+            {
+                double sumTr = 0;
+                
+                for (var j = 0; j <= i; j++)
+                {
+                    sumTr += maxTr[j];
+                }
+                
+                runningAtr = sumTr / window;
+
+                result[i] = new AtrResult
+                {
+                    Candle = candles[i],
+                    MaxTr = maxTr[i],
+                    Atr = runningAtr
+                };
+                
+                continue;
+            }
+            
+            runningAtr = alpha * maxTr[i] + (1.0 - alpha) * runningAtr;
+
+            result[i] = new AtrResult
+            {
+                Candle = candles[i],
+                MaxTr = maxTr[i],
+                Atr = runningAtr
+            };
         }
 
         return result;
