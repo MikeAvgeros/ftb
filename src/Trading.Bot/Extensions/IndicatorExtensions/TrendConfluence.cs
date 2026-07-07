@@ -4,7 +4,7 @@ public static partial class Indicator
 {
     public static IndicatorResult[] CalcTrendConfluence(this Candle[] candles, int emaFast = 9, int emaMed = 21,
         int emaSlow = 50, int atrAvgWindow = 50, double rsiOversold = 20, double rsiOverbought = 80,
-        double atrMultiplier = 1.5, double minAtrRatio = 0.8, decimal maxSpread = 0.0004m, decimal riskReward = 1m)
+        double minAtrRatio = 0.8, decimal maxSpread = 0.0004m, decimal riskReward = 1m)
     {
         var macd = candles.CalcMacd();
 
@@ -68,7 +68,7 @@ public static partial class Indicator
                 _ => Signal.None
             };
 
-            result[i].Gain = (decimal)(atr[i].Atr * atrMultiplier);
+            result[i].Gain = Math.Abs(candles[i].Mid_C - (decimal)slowEma[i]);
 
             result[i].TakeProfit = candles[i].CalcTakeProfit(result[i], riskReward);
 

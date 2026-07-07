@@ -38,7 +38,7 @@ public sealed class CandlesHandler(OandaApiService apiService) : IRequestHandler
             foreach (var granularity in granularities)
             {
                 var candles = (await apiService.GetCandles(
-                        instrument, granularity, request.Price, count, fromDate, toDate, _)).ToList();
+                        instrument, granularity, request.Price, count, fromDate, cancellationToken)).ToList();
 
                 if (candles.Count == 0) continue;
 
@@ -47,7 +47,7 @@ public sealed class CandlesHandler(OandaApiService apiService) : IRequestHandler
                     while (candles.Last().Time < toDate)
                     {
                         candles.AddRange(await apiService.GetCandles(
-                            instrument, request.Granularity, request.Price, count, candles.Last().Time, toDate, _));
+                            instrument, request.Granularity, request.Price, count, candles.Last().Time, cancellationToken));
                     }
 
                     if (candles.Last().Time > toDate) candles.RemoveAll(c => c.Time > toDate);

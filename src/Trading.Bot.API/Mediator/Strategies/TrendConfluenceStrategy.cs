@@ -26,11 +26,10 @@ public sealed class TrendConfluenceStrategy : IStrategy
             var atrWindow = request.GetInt(3, 50);
             var rsiLow = request.GetDouble(0, 20);
             var rsiHigh = request.GetDouble(1, 80);
-            var atrMultiplier = request.GetDouble(2, 1.5);
-            var atrRatio = request.GetDouble(3, 0.8);
+            var atrRatio = request.GetDouble(2, 0.8);
 
             var nextCandle = candles.CalcTrendConfluence(shortWindow, mediumWindow, longWindow,
-                atrWindow, rsiLow, rsiHigh, atrMultiplier, atrRatio, maxSpread, riskReward);
+                atrWindow, rsiLow, rsiHigh, atrRatio, maxSpread, riskReward);
 
             var fileName = $"TrendConfluence{instrument}_{granularity}";
 

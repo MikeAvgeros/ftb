@@ -123,10 +123,9 @@ public class OandaApiService(HttpClient httpClient, ILogger<OandaApiService> log
     }
 
     public async Task<Candle[]> GetCandles(string instrument, string granularity = null,
-        string price = null, int count = 500, DateTime fromDate = default, DateTime toDate = default,
-        CancellationToken cancellationToken = default)
+        string price = null, int count = 500, DateTime fromDate = default, CancellationToken cancellationToken = default)
     {
-        var endpoint = BuildCandlesEndpoint(instrument, granularity, price, count, fromDate, toDate);
+        var endpoint = BuildCandlesEndpoint(instrument, granularity, price, count, fromDate);
 
         var response = await SendAsync<CandleResponse>(HttpMethod.Get, endpoint, cancellationToken: cancellationToken);
 
@@ -218,7 +217,7 @@ public class OandaApiService(HttpClient httpClient, ILogger<OandaApiService> log
     }
 
     private static string BuildCandlesEndpoint(string instrument, string granularity = null,
-        string price = null, int count = 500, DateTime fromDate = default, DateTime toDate = default)
+        string price = null, int count = 500, DateTime fromDate = default)
     {
         var candleGranularity = string.IsNullOrEmpty(granularity) ? DefaultGranularity : granularity;
 
@@ -227,11 +226,10 @@ public class OandaApiService(HttpClient httpClient, ILogger<OandaApiService> log
         var endpoint =
             $"instruments/{instrument}/candles?granularity={candleGranularity}&price={candlePrice}";
 
-        if (fromDate != default && toDate != default)
+        if (fromDate != default)
         {
             var from = Uri.EscapeDataString(fromDate.ToUniversalTime().ToString("o"));
-            var to = Uri.EscapeDataString(toDate.ToUniversalTime().ToString("o"));
-            endpoint += $"&from={from}&to={to}";
+            endpoint += $"&from={from}&count=5000";
         }
         else
         {
