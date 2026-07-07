@@ -9,6 +9,7 @@ public sealed class TrendConfluenceStrategy : IStrategy
         var fileData = new List<FileData<IEnumerable<object>>>();
 
         var maxSpread = request.MaxSpread ?? 0.0004m;
+        var minGain = request.MinGain ?? 0.001m;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
 
@@ -29,7 +30,7 @@ public sealed class TrendConfluenceStrategy : IStrategy
             var atrRatio = request.GetDouble(2, 0.8);
 
             var nextCandle = candles.CalcTrendConfluence(shortWindow, mediumWindow, longWindow,
-                atrWindow, rsiLow, rsiHigh, atrRatio, maxSpread, riskReward);
+                atrWindow, rsiLow, rsiHigh, atrRatio, maxSpread, minGain, riskReward);
 
             var fileName = $"TrendConfluence{instrument}_{granularity}";
 

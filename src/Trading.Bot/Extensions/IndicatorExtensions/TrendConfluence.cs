@@ -4,7 +4,7 @@ public static partial class Indicator
 {
     public static IndicatorResult[] CalcTrendConfluence(this Candle[] candles, int emaFast = 9, int emaMed = 21,
         int emaSlow = 50, int atrAvgWindow = 50, double rsiOversold = 20, double rsiOverbought = 80,
-        double minAtrRatio = 0.8, decimal maxSpread = 0.0004m, decimal riskReward = 1m)
+        double minAtrRatio = 0.8, decimal maxSpread = 0.0004m, decimal minGain = 0.0006m, decimal riskReward = 1m)
     {
         var macd = candles.CalcMacd();
 
@@ -56,19 +56,19 @@ public static partial class Indicator
             var pulledBackDown = stochRsi[i].KOscillator < rsiOverbought && stochRsi[i - 1].KOscillator >= rsiOverbought;
 
             var sufficientVolatility = atr[i].Atr >= avgAtr[i] * minAtrRatio;
+            
+            result[i].Gain = Math.Abs(candles[i].Mid_C - (decimal)slowEma[i]);
 
             result[i].Signal = candles[i] switch
             {
                 var candle when bullishTrend && macdBullish && pulledBackUp && sufficientVolatility &&
                                 candle.Direction == 1 && candle.BodyPercentage > 40 &&
-                                candle.Spread <= maxSpread => Signal.Buy,
+                                candle.Spread <= maxSpread && result[i].Gain >= minGain => Signal.Buy,
                 var candle when bearishTrend && macdBearish && pulledBackDown && sufficientVolatility &&
                                 candle.Direction == -1 && candle.BodyPercentage > 40 &&
-                                candle.Spread <= maxSpread => Signal.Sell,
+                                candle.Spread <= maxSpread && result[i].Gain >= minGain => Signal.Sell,
                 _ => Signal.None
             };
-
-            result[i].Gain = Math.Abs(candles[i].Mid_C - (decimal)slowEma[i]);
 
             result[i].TakeProfit = candles[i].CalcTakeProfit(result[i], riskReward);
 

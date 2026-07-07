@@ -131,9 +131,9 @@ public class TradeManager : BackgroundService
         }
 
         var calcResults = candles.Select(c =>
-                c.CalcTrendConfluence(emaFast: settings.Integers[0], emaMed: settings.Integers[1],
-                    emaSlow: settings.Integers[2], maxSpread: settings.MaxSpread, riskReward: settings.RiskReward)
-                .Last()).ToArray();
+            c.CalcTrendConfluence(emaFast: settings.Integers[0], emaMed: settings.Integers[1],
+                emaSlow: settings.Integers[2], maxSpread: settings.MaxSpread, minGain: settings.MinGain,
+                riskReward: settings.RiskReward).Last()).ToArray();
         
         var currentIndicator = calcResults[0];
 
@@ -172,21 +172,20 @@ public class TradeManager : BackgroundService
             _logger.LogInformation("Cannot place trade for {Instrument}, not found in config.", settings.Instrument);
             return;
         }
-
-        await ExecuteTrade(settings, indicator, instrument);
-    }
-
-    private async Task ExecuteTrade(TradeSettings settings, IndicatorResult indicator, Instrument instrument)
-    {
+        
         var tradeUnits = await GetTradeUnits(settings, indicator);
 
         if (tradeUnits == 0)
         {
-            _logger.LogWarning("Cannot place trade for {Instrument}, unable to calculate trade units",
-                settings.Instrument);
+            _logger.LogWarning("Cannot place trade for {Instrument}, unable to calculate trade units", settings.Instrument);
             return;
         }
 
+        await ExecuteTrade(settings, indicator, instrument, tradeUnits);
+    }
+
+    private async Task ExecuteTrade(TradeSettings settings, IndicatorResult indicator, Instrument instrument, decimal tradeUnits)
+    {
         var trailingStop = settings.TrailingStop ? CalcTrailingStop(indicator, settings.RiskReward) : 0;
 
         var stopLoss = settings.TrailingStop ? 0 : indicator.StopLoss;
