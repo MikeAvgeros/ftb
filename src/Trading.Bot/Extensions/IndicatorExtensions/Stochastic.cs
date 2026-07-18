@@ -51,7 +51,7 @@ public static partial class Indicator
             
             if (i < window - 1)
             {
-                result[i].KOscillator = double.NaN;
+                result[i].KOscillator = 0.0;
                 continue;
             }
 

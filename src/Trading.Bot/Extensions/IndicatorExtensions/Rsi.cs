@@ -44,7 +44,7 @@ public static partial class Indicator
                 
                 sumLoss += losses[i];
 
-                var rsiValue = double.NaN;
+                var rsiValue = 0.0;
                 
                 if (i == window - 1)
                 {
