@@ -89,21 +89,19 @@ public static partial class Indicator
         }
 
         var smaD = oscillators.CalcSma(smoothD);
-        
-        var totalWarmup = (window - 1) + (smoothK > 1 ? (smoothK - 1) : 0) + (smoothD - 1);
+
+        var kWarmup = (window - 1) + (smoothK > 1 ? (smoothK - 1) : 0);
+
+        var totalWarmup = kWarmup + (smoothD - 1);
 
         for (var i = 0; i < length; i++)
         {
-            if (i < totalWarmup)
+            if (i < kWarmup)
             {
                 result[i].KOscillator = 0.0;
-                
-                result[i].DOscillator = 0.0;
             }
-            else
-            {
-                result[i].DOscillator = smaD[i];
-            }
+
+            result[i].DOscillator = i < totalWarmup ? 0.0 : smaD[i];
         }
 
         return result;

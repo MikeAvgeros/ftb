@@ -21,6 +21,19 @@ public static partial class Indicator
 
         for (var i = 0; i < length; i++)
         {
+            if (i < atrWindow - 1)
+            {
+                result[i] = new KeltnerChannelsResult
+                {
+                    Candle = candles[i],
+                    Ema = ema[i],
+                    UpperBand = 0.0,
+                    LowerBand = 0.0
+                };
+
+                continue;
+            }
+
             var band = atr[i].Atr * multiplier;
 
             result[i] = new KeltnerChannelsResult
