@@ -3,9 +3,9 @@ namespace Trading.Bot.Extensions.IndicatorExtensions;
 public static partial class Indicator
 {
     public static IndicatorResult[] CalcIntradayMeanReversion(this Candle[] candles, int window = 20,
-        double stdDev = 2, int rsiWindow = 14, double rsiLower = 30, double rsiUpper = 70, int stochWindow = 14,
+        double stdDev = 2, int rsiWindow = 14, double rsiLower = 20, double rsiUpper = 80, int stochWindow = 14,
         double stochLower = 20, double stochUpper = 80, int atrWindow = 14, double atrMultiplier = 1.5,
-        double volatilityRegimeMax = 1.4, decimal maxSpread = 0.0006m, decimal riskReward = 1.5m)
+        double volatilityRegimeMax = 1.4, decimal maxSpread = 0.0004m, decimal minGain = 0.0006m, decimal riskReward = 1m)
     {
         var length = candles.Length;
 
@@ -20,7 +20,7 @@ public static partial class Indicator
 
         var rsiResult = candles.CalcRsi(rsiWindow);
 
-        var stochastic = candles.CalcStochastic(stochWindow, 3, 3);
+        var stochastic = candles.CalcStochastic(stochWindow, 3);
 
         var atrResult = candles.CalcAtr(atrWindow);
 
@@ -59,16 +59,14 @@ public static partial class Indicator
 
             var isRangingRegime = atrBaseValue > 0 && atrResult[i].Atr / atrBaseValue <= volatilityRegimeMax;
 
-            var isTightSpread = candles[i].Spread <= maxSpread;
-
             result[i].Gain = (decimal)atrResult[i].Atr * (decimal)atrMultiplier;
 
             result[i].Signal = (reversalUp, reversalDown) switch
             {
                 (true, _) when rsiResult[i].Rsi < rsiLower && stochastic[i].KOscillator < stochLower &&
-                               isRangingRegime && isTightSpread => Signal.Buy,
+                               isRangingRegime && candles[i].Spread <= maxSpread && result[i].Gain >= minGain => Signal.Buy,
                 (_, true) when rsiResult[i].Rsi > rsiUpper && stochastic[i].KOscillator > stochUpper &&
-                               isRangingRegime && isTightSpread => Signal.Sell,
+                               isRangingRegime && candles[i].Spread <= maxSpread && result[i].Gain >= minGain => Signal.Sell,
                 _ => Signal.None
             };
 
