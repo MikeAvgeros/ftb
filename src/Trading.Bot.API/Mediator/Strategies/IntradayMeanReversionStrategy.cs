@@ -27,11 +27,11 @@ public sealed class IntradayMeanReversionStrategy : IStrategy
             var atrWindow = request.GetInt(3, 14);
 
             var stdDev = request.GetDouble(0, 2);
-            var rsiLower = request.GetDouble(1, 20);
-            var rsiUpper = request.GetDouble(2, 80);
+            var rsiLower = request.GetDouble(1, 30);
+            var rsiUpper = request.GetDouble(2, 70);
             var stochLower = request.GetDouble(3, 20);
             var stochUpper = request.GetDouble(4, 80);
-            var atrMultiplier = request.GetDouble(5, 1.5);
+            var atrMultiplier = request.GetDouble(5, 2);
             var volatilityRegimeMax = request.GetDouble(6, 1.4);
 
             var intradayMeanReversion = candles.CalcIntradayMeanReversion(window, stdDev, rsiWindow, rsiLower,

@@ -3,7 +3,7 @@ namespace Trading.Bot.Extensions.IndicatorExtensions;
 public static partial class Indicator
 {
     public static IndicatorResult[] CalcIntradayMeanReversion(this Candle[] candles, int window = 20,
-        double stdDev = 2, int rsiWindow = 14, double rsiLower = 20, double rsiUpper = 80, int stochWindow = 14,
+        double stdDev = 2, int rsiWindow = 14, double rsiLower = 30, double rsiUpper = 70, int stochWindow = 14,
         double stochLower = 20, double stochUpper = 80, int atrWindow = 14, double atrMultiplier = 1.5,
         double volatilityRegimeMax = 1.4, decimal maxSpread = 0.0004m, decimal minGain = 0.0006m, decimal riskReward = 1m)
     {

@@ -9,6 +9,7 @@ public class TradeResult
     public Signal Signal { get; set; }
     public decimal TakeProfit { get; set; }
     public decimal StopLoss { get; set; }
+    public decimal InitialStopLoss { get; set; }
     public decimal? TrailingDistance { get; set; }
     public decimal UnrealisedPl { get; set; }
     public DateTime StartTime { get; set; }

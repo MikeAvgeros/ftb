@@ -184,6 +184,7 @@ public static class BackTestingExtensions
                     Signal = indicators[i].Signal,
                     TakeProfit = indicators[i].TakeProfit,
                     StopLoss = indicators[i].StopLoss,
+                    InitialStopLoss = indicators[i].StopLoss,
                     StartTime = indicators[i].Candle.Time,
                     EndTime = indicators[i].Candle.Time,
                     Result = 0
@@ -197,9 +198,28 @@ public static class BackTestingExtensions
             openTrades.RemoveAll(ot => !ot.Running);
         }
 
+        CloseTradesAtEndOfData(indicators, openTrades, closedTrades);
+
         var summary = CalcSimSummary(indicators, tradeRisk, riskReward, closedTrades);
 
         return (closedTrades.ToArray(), summary);
+    }
+
+    private static void CloseTradesAtEndOfData(IndicatorResult[] indicators, List<TradeResult> openTrades,
+        List<TradeResult> closedTrades)
+    {
+        var lastIndicator = indicators[^1];
+
+        foreach (var trade in openTrades)
+        {
+            var exitPrice = trade.Signal == Signal.Buy
+                ? lastIndicator.Candle.Bid_C
+                : lastIndicator.Candle.Ask_C;
+
+            CloseTrade(trade, GetLossResult(trade, exitPrice), lastIndicator.Candle.Time, exitPrice);
+
+            closedTrades.Add(trade);
+        }
     }
 
     private static (PairTradeResult[] Result, SimulationSummary Summary) SimulatePairsTrade(
@@ -245,9 +265,26 @@ public static class BackTestingExtensions
             openTrades.RemoveAll(ot => !ot.Running);
         }
 
+        ClosePairsTradesAtEndOfData(indicators, openTrades, closedTrades);
+
         var summary = CalcPairsSimSummary(indicators, tradeRisk, closedTrades);
 
         return (closedTrades.ToArray(), summary);
+    }
+
+    private static void ClosePairsTradesAtEndOfData(PairsIndicatorResult[] indicators,
+        List<PairTradeResult> openTrades, List<PairTradeResult> closedTrades)
+    {
+        var lastIndicator = indicators[^1];
+
+        foreach (var trade in openTrades)
+        {
+            trade.Running = false;
+            trade.EndTime = lastIndicator.CandleA.Time;
+            trade.Result = trade.UnrealisedPl > 0 ? 1 : -1;
+
+            closedTrades.Add(trade);
+        }
     }
 
     private static void UpdateUnrealisedPl(IndicatorResult indicator, List<TradeResult> openTrades)
@@ -414,7 +451,9 @@ public static class BackTestingExtensions
 
     private static decimal GetAccurateResult(decimal result, TradeResult trade, decimal exitPrice)
     {
-        if (result <= 0) return result;
+        if (result < 0) return -GetDistance(trade.TriggerPrice, exitPrice, trade.InitialStopLoss);
+
+        if (result == 0) return result;
 
         var reachedTakeProfit = trade.Signal == Signal.Buy
             ? exitPrice >= trade.TakeProfit
@@ -464,7 +503,9 @@ public static class BackTestingExtensions
 
         var winResultSum = closedTrades.Where(t => t.Result > 0).Sum(t => t.Result);
 
-        summary.Balance = (double)Math.Round(winResultSum * tradeRisk * riskReward - summary.Losses * tradeRisk, 2);
+        var lossResultSum = closedTrades.Where(t => t.Result < 0).Sum(t => t.Result);
+
+        summary.Balance = (double)Math.Round(winResultSum * tradeRisk * riskReward + lossResultSum * tradeRisk, 2);
 
         return summary;
     }
