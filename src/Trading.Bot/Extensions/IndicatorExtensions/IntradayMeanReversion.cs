@@ -5,8 +5,7 @@ public static partial class Indicator
     public static IndicatorResult[] CalcIntradayMeanReversion(this Candle[] candles, int window = 20,
         double stdDev = 2, int rsiWindow = 14, double rsiLower = 30, double rsiUpper = 70, int stochWindow = 14,
         double stochLower = 20, double stochUpper = 80, int atrWindow = 14, double atrMultiplier = 1.5,
-        double volatilityRegimeMax = 1.4, int sessionStartHour = 7, int sessionEndHour = 16,
-        decimal maxSpread = 0.0003m, decimal riskReward = 1.5m)
+        double volatilityRegimeMax = 1.4, decimal maxSpread = 0.0006m, decimal riskReward = 1.5m)
     {
         var length = candles.Length;
 
@@ -55,12 +54,6 @@ public static partial class Indicator
             var reversalUp = candles[i - 1].Mid_C < prevLowerBand && candles[i].Mid_C >= lowerBand;
 
             var reversalDown = candles[i - 1].Mid_C > prevUpperBand && candles[i].Mid_C <= upperBand;
-
-            var hour = candles[i].Time.Hour;
-            
-            var inSession = sessionStartHour <= sessionEndHour
-                ? hour >= sessionStartHour && hour < sessionEndHour
-                : hour >= sessionStartHour || hour < sessionEndHour;
             
             var atrBaseValue = atrBaseline[i];
 
@@ -73,9 +66,9 @@ public static partial class Indicator
             result[i].Signal = (reversalUp, reversalDown) switch
             {
                 (true, _) when rsiResult[i].Rsi < rsiLower && stochastic[i].KOscillator < stochLower &&
-                               isRangingRegime && inSession && isTightSpread => Signal.Buy,
+                               isRangingRegime && isTightSpread => Signal.Buy,
                 (_, true) when rsiResult[i].Rsi > rsiUpper && stochastic[i].KOscillator > stochUpper &&
-                               isRangingRegime && inSession && isTightSpread => Signal.Sell,
+                               isRangingRegime && isTightSpread => Signal.Sell,
                 _ => Signal.None
             };
 

@@ -112,7 +112,7 @@ public class TradeManager : BackgroundService
 
     private static bool GoodTradingTime(DateTime now)
     {
-        return now.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && now.Hour is >= 8 and < 17;
+        return now.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && now.Hour is >= 7 and < 16;
     }
 
     private async Task CalculateTrade(TradeSettings settings)
