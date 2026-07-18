@@ -16,6 +16,7 @@ public static class StrategyServiceCollectionExtensions
             .AddSingleton<IStrategy, TrendConfluenceStrategy>()
             .AddSingleton<IStrategy, MikeStrategy>()
             .AddSingleton<IStrategy, EliasStrategy>()
-            .AddSingleton<IStrategy, PairsTradingStrategy>();
+            .AddSingleton<IStrategy, PairsTradingStrategy>()
+            .AddSingleton<IStrategy, IntradayMeanReversionStrategy>();
     }
 }

@@ -13,5 +13,6 @@ public enum StrategyType
     TrendConfluence,
     MikeStrategy,
     EliasStrategy,
-    PairsTrading
+    PairsTrading,
+    IntradayMeanReversion
 }
