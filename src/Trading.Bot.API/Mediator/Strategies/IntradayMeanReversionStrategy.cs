@@ -12,6 +12,7 @@ public sealed class IntradayMeanReversionStrategy : IStrategy
         var minGain = request.MinGain ?? 0.0006m;
         var riskReward = request.RiskReward ?? 1m;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -31,15 +32,14 @@ public sealed class IntradayMeanReversionStrategy : IStrategy
             var rsiUpper = request.GetDouble(2, 70);
             var stochLower = request.GetDouble(3, 20);
             var stochUpper = request.GetDouble(4, 80);
-            var atrMultiplier = request.GetDouble(5, 2);
             var volatilityRegimeMax = request.GetDouble(6, 1.4);
 
             var intradayMeanReversion = candles.CalcIntradayMeanReversion(window, stdDev, rsiWindow, rsiLower,
-                rsiUpper, stochWindow, stochLower, stochUpper, atrWindow, atrMultiplier, volatilityRegimeMax, maxSpread, minGain, riskReward);
+                rsiUpper, stochWindow, stochLower, stochUpper, atrWindow, volatilityRegimeMax, maxSpread, minGain, riskReward);
 
             var fileName = $"IntradayMeanReversion_{instrument}_{granularity}_{window}_{stdDev}";
 
-            fileData.AddRange(intradayMeanReversion.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(intradayMeanReversion.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0

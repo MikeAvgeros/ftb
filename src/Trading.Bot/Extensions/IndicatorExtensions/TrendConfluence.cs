@@ -14,11 +14,11 @@ public static partial class Indicator
 
         var prices = candles.Select(c => (double)c.Mid_C).ToArray();
 
-        var fastEma = prices.CalcEma(emaFast);
+        var fastEma = prices.AsSpan().CalcEma(emaFast);
 
-        var medEma = prices.CalcEma(emaMed);
+        var medEma = prices.AsSpan().CalcEma(emaMed);
 
-        var slowEma = prices.CalcEma(emaSlow);
+        var slowEma = prices.AsSpan().CalcEma(emaSlow);
 
         var atrValues = atr.Select(a => a.Atr).ToArray();
 
@@ -42,10 +42,12 @@ public static partial class Indicator
 
                 continue;
             }
-            
-            var bullishTrend = fastEma[i] > medEma[i] && medEma[i] > slowEma[i];
 
-            var bearishTrend = fastEma[i] < medEma[i] && medEma[i] < slowEma[i];
+            var bullishTrend = fastEma[i] > medEma[i] && medEma[i] > slowEma[i] && 
+                               prices[i] > prices[i - 1] && prices[i - 1] > prices[i - 2];
+
+            var bearishTrend = fastEma[i] < medEma[i] && medEma[i] < slowEma[i] &&
+                               prices[i] < prices[i - 1] && prices[i - 1] < prices[i - 2];
             
             var macdBullish = macd[i].Histogram > 0 && macd[i].Histogram > macd[i - 1].Histogram;
 

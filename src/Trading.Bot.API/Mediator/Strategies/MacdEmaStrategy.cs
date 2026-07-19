@@ -12,6 +12,7 @@ public sealed class MacdEmaStrategy : IStrategy
         var minGain = request.MinGain ?? 0.0006m;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -27,7 +28,7 @@ public sealed class MacdEmaStrategy : IStrategy
 
             var fileName = $"MacdEma_{instrument}_{granularity}_{emaWindow}";
 
-            fileData.AddRange(macdEma.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(macdEma.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0

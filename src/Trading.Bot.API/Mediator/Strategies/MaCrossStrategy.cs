@@ -12,6 +12,7 @@ public sealed class MaCrossStrategy : IStrategy
         var minGain = request.MinGain ?? 0.0006m;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -31,7 +32,7 @@ public sealed class MaCrossStrategy : IStrategy
                 var fileName = $"MaCross_{instrument}_{granularity}_{window.Item1}_{window.Item2}";
 
                 fileData.AddRange(movingAvgCross.Cast<IndicatorResult>().ToArray()
-                    .GetFileData(fileName, tradeRisk, riskReward, true));
+                    .GetFileData(fileName, tradeRisk, riskReward, updateTrade));
             }
         }
 

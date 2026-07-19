@@ -12,6 +12,7 @@ public sealed class MeanReversionStrategy : IStrategy
         var minGain = request.MinGain ?? 0;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -31,7 +32,7 @@ public sealed class MeanReversionStrategy : IStrategy
 
             var fileName = $"MeanReversion_{instrument}_{granularity}_{window}_{standardDeviation}";
 
-            fileData.AddRange(bollingerBands.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(bollingerBands.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0

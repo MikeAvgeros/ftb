@@ -12,6 +12,7 @@ public sealed class MikeStrategy : IStrategy
         var minGain = request.MinGain ?? 0.001m;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -30,7 +31,7 @@ public sealed class MikeStrategy : IStrategy
 
             var fileName = $"MikeStrategy_{instrument}_{granularity}";
 
-            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0

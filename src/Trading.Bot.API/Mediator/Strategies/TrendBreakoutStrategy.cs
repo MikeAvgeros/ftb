@@ -11,6 +11,7 @@ public sealed class TrendBreakoutStrategy : IStrategy
         var maxSpread = request.MaxSpread ?? 0.0004m;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -26,7 +27,7 @@ public sealed class TrendBreakoutStrategy : IStrategy
 
             var fileName = $"TrendBreakout_{instrument}_{granularity}";
 
-            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(nextCandle.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0

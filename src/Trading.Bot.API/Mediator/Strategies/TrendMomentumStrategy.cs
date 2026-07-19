@@ -12,6 +12,7 @@ public sealed class TrendMomentumStrategy : IStrategy
         var minGain = request.MinGain ?? 0;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -32,7 +33,7 @@ public sealed class TrendMomentumStrategy : IStrategy
 
             var fileName = $"TrendMomentum_{instrument}_{granularity}_{bbWindow}_{emaWindow}_{standardDeviation}";
 
-            fileData.AddRange(bollingerBands.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(bollingerBands.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0

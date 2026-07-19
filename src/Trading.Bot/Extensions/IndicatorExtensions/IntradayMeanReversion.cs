@@ -4,8 +4,8 @@ public static partial class Indicator
 {
     public static IndicatorResult[] CalcIntradayMeanReversion(this Candle[] candles, int window = 20,
         double stdDev = 2, int rsiWindow = 14, double rsiLower = 30, double rsiUpper = 70, int stochWindow = 14,
-        double stochLower = 20, double stochUpper = 80, int atrWindow = 14, double atrMultiplier = 1.5,
-        double volatilityRegimeMax = 1.4, decimal maxSpread = 0.0004m, decimal minGain = 0.0006m, decimal riskReward = 1m)
+        double stochLower = 20, double stochUpper = 80, int atrWindow = 14, double volatilityRegimeMax = 1.4, 
+        decimal maxSpread = 0.0004m, decimal minGain = 0.0006m, decimal riskReward = 1m)
     {
         var length = candles.Length;
 
@@ -23,6 +23,10 @@ public static partial class Indicator
         var stochastic = candles.CalcStochastic(stochWindow, 3);
 
         var atrResult = candles.CalcAtr(atrWindow);
+        
+        var prices = candles.Select(c => (double)c.Mid_C).ToArray();
+        
+        var movingAverages = prices.AsSpan().CalcEma(window);
 
         Span<double> atrValues = length <= MaxStackAlloc ? stackalloc double[length] : new double[length];
 
@@ -50,16 +54,18 @@ public static partial class Indicator
             var prevLowerBand = (decimal)bollingerBands[i - 1].LowerBand;
 
             var prevUpperBand = (decimal)bollingerBands[i - 1].UpperBand;
-            
-            var reversalUp = candles[i - 1].Mid_C < prevLowerBand && candles[i].Mid_C >= lowerBand;
 
-            var reversalDown = candles[i - 1].Mid_C > prevUpperBand && candles[i].Mid_C <= upperBand;
+            var reversalUp = candles[i - 1].Mid_C < prevLowerBand && candles[i].Mid_C > lowerBand &&
+                             candles[i - 1].Mid_C < (decimal)movingAverages[i];
+
+            var reversalDown = candles[i - 1].Mid_C > prevUpperBand && candles[i].Mid_C < upperBand &&
+                               candles[i - 1].Mid_C > (decimal)movingAverages[i];
             
             var atrBaseValue = atrBaseline[i];
 
             var isRangingRegime = atrBaseValue > 0 && atrResult[i].Atr / atrBaseValue <= volatilityRegimeMax;
 
-            result[i].Gain = (decimal)atrResult[i].Atr * (decimal)atrMultiplier;
+            result[i].Gain = Math.Abs(candles[i].Mid_C - (decimal)movingAverages[i]);
 
             result[i].Signal = (reversalUp, reversalDown) switch
             {

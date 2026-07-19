@@ -12,6 +12,7 @@ public sealed class RsiEmaStrategy : IStrategy
         var minGain = request.MinGain ?? 0.0006m;
         var riskReward = request.RiskReward ?? 1;
         var tradeRisk = request.TradeRisk ?? 10;
+        var updateTrade = request.UpdateTrade ?? true;
 
         foreach (var file in request.Files)
         {
@@ -30,7 +31,7 @@ public sealed class RsiEmaStrategy : IStrategy
 
             var fileName = $"RsiEma_{instrument}_{granularity}_{rsiWindow}_{emaWindow}";
 
-            fileData.AddRange(rsi.GetFileData(fileName, tradeRisk, riskReward, true));
+            fileData.AddRange(rsi.GetFileData(fileName, tradeRisk, riskReward, updateTrade));
         }
 
         return fileData.Count == 0
