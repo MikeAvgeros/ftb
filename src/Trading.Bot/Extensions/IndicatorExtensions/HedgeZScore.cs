@@ -3,7 +3,7 @@
 public static partial class Indicator
 {
     public static PairsIndicatorResult[] CalcHedgeZScore(this Candle[] pairA, Candle[] pairB, int window = 50,
-        decimal maxSpread = 0.0004m, int tradeRisk = 10)
+        decimal maxSpread = 0.0004m, int tradeRisk = 10, decimal baseUnits = 5000m)
     {
         if (pairA.Length != pairB.Length) throw new ArgumentException("Pairs must have the same length.");
 
@@ -27,9 +27,9 @@ public static partial class Indicator
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
 
-            var pairAHistory = pairAPrices.Take(i).TakeLast(window).ToArray();
+            var pairAHistory = pairAPrices.Take(i + 1).TakeLast(window).ToArray().Winsorize();
 
-            var pairBHistory = pairBPrices.Take(i).TakeLast(window).ToArray();
+            var pairBHistory = pairBPrices.Take(i + 1).TakeLast(window).ToArray().Winsorize();
 
             var beta = pairAHistory.CalcBeta(pairBHistory);
 
@@ -40,7 +40,9 @@ public static partial class Indicator
                 spreadHistory[y] = pairAHistory[y] - beta * pairBHistory[y];
             }
 
-            var zScore = spreadHistory.CalcZScore();
+            var zScore = spreadHistory.CalcWinsorizedZScore();
+
+            result[i].ZScore = zScore;
 
             result[i].Signal = zScore switch
             {
@@ -54,6 +56,10 @@ public static partial class Indicator
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
             
             result[i].Beta = (decimal)Math.Clamp(beta, 0.8, 1.2);
+
+            result[i].UnitsA = baseUnits;
+
+            result[i].UnitsB = Math.Round(baseUnits * result[i].Beta, 0);
         }
 
         return result;

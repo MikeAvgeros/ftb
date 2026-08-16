@@ -289,12 +289,8 @@ public static class NumericExtensions
     }
     
     public static (double Beta, double Variance) CalcKalmanBeta(
-        this double valueA, 
-        double valueB,
-        double prevBeta,
-        double prevVariance,
-        double q = 1e-6,
-        double r = 1e-4)
+        this double valueA, double valueB, double prevBeta,
+        double prevVariance, double q = 1e-6, double r = 1e-4)
     {
         var varPred = prevVariance + q;
 
@@ -334,9 +330,86 @@ public static class NumericExtensions
 
         return returns;
     }
+    
+    public static double[] Winsorize(this double[] sequence, double numStdDev = 3.0)
+    {
+        var mean = sequence.Average();
 
-    private static double NaN2Zero(this double value)
-        => double.IsNaN(value)
-            ? 0.0
-            : value;
+        var std = sequence.CalcStdDev();
+
+        if (std == 0) return sequence;
+
+        var lower = mean - numStdDev * std;
+
+        var upper = mean + numStdDev * std;
+
+        var result = new double[sequence.Length];
+
+        for (var i = 0; i < sequence.Length; i++)
+        {
+            result[i] = Math.Clamp(sequence[i], lower, upper);
+        }
+
+        return result;
+    }
+    
+    public static double CalcWinsorizedZScore(this double[] sequence, double clipStdDev = 3.0)
+    {
+        var winsorized = sequence.Winsorize(clipStdDev);
+
+        var zScore = winsorized.CalcZScore();
+
+        return Math.Clamp(zScore, -clipStdDev, clipStdDev);
+    }
+
+    private static (double[] Mean, double[] StdDev) CalcRunningStats(this double[] sequence)
+    {
+        var length = sequence.Length;
+
+        var mean = new double[length];
+
+        var std = new double[length];
+
+        double runningMean = 0;
+
+        double m2 = 0;
+
+        for (var i = 0; i < length; i++)
+        {
+            var n = i + 1;
+
+            var delta = sequence[i] - runningMean;
+
+            runningMean += delta / n;
+
+            m2 += delta * (sequence[i] - runningMean);
+
+            mean[i] = runningMean;
+
+            std[i] = Math.Sqrt(Math.Max(m2 / n, 0));
+        }
+
+        return (mean, std);
+    }
+    
+    public static double[] CalcExpandingZScore(this double[] sequence, double clipStdDev = 3.0)
+    {
+        var (mean, std) = sequence.CalcRunningStats();
+
+        var length = sequence.Length;
+
+        var result = new double[length];
+
+        for (var i = 0; i < length; i++)
+        {
+            result[i] = std[i] == 0 ? 0.0 : Math.Clamp((sequence[i] - mean[i]) / std[i], -clipStdDev, clipStdDev);
+        }
+
+        return result;
+    }
+    
+    public static double CalcEqualWeightedZScore(this IReadOnlyCollection<double> zScores)
+    {
+        return zScores.Count == 0 ? 0.0 : zScores.Average();
+    }
 }

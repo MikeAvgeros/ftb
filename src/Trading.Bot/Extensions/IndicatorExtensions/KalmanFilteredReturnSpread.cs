@@ -3,7 +3,7 @@
 public static partial class Indicator
 {
     public static PairsIndicatorResult[] CalcKalmanFilteredReturnSpread(this Candle[] pairA, Candle[] pairB,
-        int window = 50, decimal maxSpread = 0.0004m)
+        int window = 50, decimal maxSpread = 0.0004m, decimal baseUnits = 5000m)
     {
         if (pairA.Length != pairB.Length) throw new ArgumentException("Pairs must have the same length.");
 
@@ -14,6 +14,27 @@ public static partial class Indicator
         var returnsA = pricesA.CalcLogReturns();
 
         var returnsB = pricesB.CalcLogReturns();
+
+        var returnsLength = returnsA.Length;
+        
+        var betaSeries = new double[returnsLength];
+
+        var spreadSeries = new double[returnsLength];
+
+        double beta = 0.9, variance = 0.1;
+
+        for (var y = 0; y < returnsLength; y++)
+        {
+            var kalman = returnsA[y].CalcKalmanBeta(returnsB[y], beta, variance);
+
+            beta = kalman.Beta;
+
+            variance = kalman.Variance;
+
+            betaSeries[y] = beta;
+
+            spreadSeries[y] = returnsA[y] - beta * returnsB[y];
+        }
 
         var length = pairA.Length;
 
@@ -30,26 +51,18 @@ public static partial class Indicator
             if (i < window) continue;
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
-            
+
             var returnAHistory = returnsA.Take(i).TakeLast(window).ToArray();
 
             var returnBHistory = returnsB.Take(i).TakeLast(window).ToArray();
-            
+
             var correlation = returnAHistory.CalcCorrelation(returnBHistory);
 
-            var spreadHistory = new double[window];
+            var spreadHistory = spreadSeries.Take(i).TakeLast(window).ToArray().Winsorize();
 
-            double beta = 0.9, variance = 0.1;
+            var zScore = spreadHistory.CalcWinsorizedZScore();
 
-            for (var y = 0; y < window; y++)
-            {
-                var kalman = returnAHistory[y].CalcKalmanBeta(returnBHistory[y], beta, variance);
-                spreadHistory[y] = returnAHistory[y] - kalman.Beta * returnBHistory[y];
-                beta = kalman.Beta;
-                variance = kalman.Variance;
-            }
-
-            var zScore = spreadHistory.CalcZScore();
+            result[i].ZScore = zScore;
 
             result[i].Signal = zScore switch
             {
@@ -61,8 +74,12 @@ public static partial class Indicator
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
-            
-            result[i].Beta = (decimal)Math.Clamp(beta, 0.8, 1.2);
+
+            result[i].Beta = (decimal)Math.Clamp(betaSeries[i - 1], 0.8, 1.2);
+
+            result[i].UnitsA = baseUnits;
+
+            result[i].UnitsB = Math.Round(baseUnits * result[i].Beta, 0);
         }
 
         return result;

@@ -12,7 +12,7 @@ public class PairsTradeManager : BackgroundService
     private readonly Dictionary<string, Instrument> _instrumentsByName = [];
     private readonly Dictionary<string, bool> _pairsReady;
     private readonly int _maxDegreeOfParallelism;
-    private readonly object _pairsReadyLock = new();
+    private readonly Lock _pairsReadyLock = new();
     private readonly string _instrumentNames;
     private int _pairsReadyCount;
     private const int AdditionalCandles = 20;
@@ -31,6 +31,13 @@ public class PairsTradeManager : BackgroundService
         _tradeConfiguration = tradeConfiguration;
         _emailService = emailService;
         _tradeSettings = tradeConfiguration.TradeSettings;
+
+        if (_tradeSettings.Length != 2)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(PairsTradeManager)} requires exactly two {nameof(TradeSettings)} entries, but {_tradeSettings.Length} were configured.");
+        }
+
         _settingsByInstrument = _tradeSettings.ToDictionary(s => s.Instrument);
         _pairsReady = _tradeSettings.ToDictionary(s => s.Instrument, _ => false);
         _instrumentNames = string.Join(",", _settingsByInstrument.Keys);
@@ -149,23 +156,18 @@ public class PairsTradeManager : BackgroundService
 
     private async Task CalculateTrade(TradeSettings[] tradeSettings)
     {
-        var candles = await Task.WhenAll(tradeSettings.Select(settings =>
-            _apiService.GetCandles(settings.Instrument, settings.MainGranularity,
-                count: settings.Integers[0] + AdditionalCandles)));
+        var window = tradeSettings[0].Integers[0];
 
-        if (candles.Length == 0 || candles.Any(c => c.Length == 0))
+        var candles = await Task.WhenAll(tradeSettings.Select(settings =>
+            _apiService.GetCandles(settings.Instrument, settings.MainGranularity, count: window + AdditionalCandles)));
+
+        if (candles.Any(c => c.Length == 0))
         {
             _logger.LogInformation("Not placing a trade for {Pairs}, candles not found", _instrumentNames);
             return;
         }
 
-        var calcResult = candles[0].CalcMaDistanceZScore(candles[1], tradeSettings[0].Integers[0]).Last();
-
-        if (calcResult.UnitsA == 0 || calcResult.UnitsB == 0)
-        {
-            calcResult.UnitsA = 5000;
-            calcResult.UnitsB = 5000;
-        }
+        var calcResult = candles[0].CalcMaDistanceZScore(candles[1], window).Last();
 
         var allOpenTrades = await _apiService.GetOpenTrades();
 
@@ -175,9 +177,19 @@ public class PairsTradeManager : BackgroundService
 
         if (ShouldExitTrade(pairTrades, calcResult, _tradeConfiguration.TradeRisk))
         {
-            await Task.WhenAll(pairTrades.Select(trade => _apiService.CloseTrade(trade.Id)));
+            var closeResults = await Task.WhenAll(pairTrades.Select(trade => _apiService.CloseTrade(trade.Id)));
 
-            pairTrades = [];
+            if (closeResults.All(success => success))
+            {
+                pairTrades = [];
+            }
+            else
+            {
+                _logger.LogError(
+                    "Failed to close one or more existing trades for {Pairs}. Skipping this cycle to avoid stacking a new position on top of the unclosed one.",
+                    _instrumentNames);
+                return;
+            }
         }
 
         if (calcResult.Signal != Signal.None)
@@ -204,11 +216,39 @@ public class PairsTradeManager : BackgroundService
             return;
         }
 
-        await Task.WhenAll(tradeSettings.Select(settings => ExecuteTrade(settings, indicator,
+        var results = await Task.WhenAll(tradeSettings.Select(settings => ExecuteTrade(settings, indicator,
             _instrumentsByName[settings.Instrument])));
+
+        if (results.All(r => r.Success)) return;
+
+        var filledTradeIds = results.Where(r => r.TradeId is not null).Select(r => r.TradeId).ToArray();
+
+        if (filledTradeIds.Length == 0) return;
+
+        _logger.LogError(
+            "Partial fill for pair {Pairs}: one leg failed to open. Closing {Count} filled leg(s) to avoid a naked, unhedged position.",
+            _instrumentNames, filledTradeIds.Length);
+
+        var rollbackResults = await Task.WhenAll(filledTradeIds.Select(id => _apiService.CloseTrade(id)));
+
+        if (!rollbackResults.All(success => success))
+        {
+            _logger.LogError(
+                "Failed to flatten one or more filled legs for {Pairs} after a partial fill. Manual intervention required.",
+                _instrumentNames);
+        }
+
+        if (_tradeConfiguration.SendEmail)
+        {
+            await SendEmailNotification(new
+            {
+                Pairs = _instrumentNames,
+                Error = "Partial fill detected while opening pair trade; attempted to flatten the filled leg(s)."
+            });
+        }
     }
 
-    private async Task ExecuteTrade(TradeSettings settings, PairsIndicatorResult indicator, Instrument instrument)
+    private async Task<TradeExecutionResult> ExecuteTrade(TradeSettings settings, PairsIndicatorResult indicator, Instrument instrument)
     {
         var isPrimary = _tradeConfiguration.TradeSettings[0].Instrument == settings.Instrument;
 
@@ -227,7 +267,7 @@ public class PairsTradeManager : BackgroundService
         if (ofResponse is null)
         {
             _logger.LogWarning("Failed to place order for {Instrument}", settings.Instrument);
-            return;
+            return new TradeExecutionResult(false, null);
         }
 
         if (_tradeConfiguration.SendEmail)
@@ -238,7 +278,11 @@ public class PairsTradeManager : BackgroundService
                 Signal = signal.ToString()
             });
         }
+
+        return new TradeExecutionResult(true, ofResponse.TradeOpened?.TradeID);
     }
+
+    private readonly record struct TradeExecutionResult(bool Success, string TradeId);
 
     private static Signal GetOppositeSignal(Signal signal)
     {
