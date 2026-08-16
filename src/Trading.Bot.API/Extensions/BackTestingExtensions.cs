@@ -252,6 +252,8 @@ public static class BackTestingExtensions
                     TriggerBPrice = indicators[i].Signal == Signal.Buy
                         ? indicators[i].CandleB.Bid_C
                         : indicators[i].CandleB.Ask_C,
+                    UnitsA = indicators[i].UnitsA,
+                    UnitsB = indicators[i].UnitsB,
                     StartTime = indicators[i].CandleA.Time,
                     EndTime = indicators[i].CandleA.Time,
                     Result = 0
@@ -317,8 +319,8 @@ public static class BackTestingExtensions
                 Signal.Sell => trade.TriggerBPrice - indicator.CandleB.Ask_C,
                 _ => trade.UnrealisedPl
             };
-            
-            trade.UnrealisedPl = apl + bpl;
+
+            trade.UnrealisedPl = apl * trade.UnitsA + bpl * trade.UnitsB;
         }
     }
 

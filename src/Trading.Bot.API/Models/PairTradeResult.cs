@@ -7,6 +7,8 @@ public class PairTradeResult
     public Signal CandleBSignal { get; set; }
     public decimal TriggerAPrice { get; set; }
     public decimal TriggerBPrice { get; set; }
+    public decimal UnitsA { get; set; }
+    public decimal UnitsB { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
     public decimal Result { get; set; }
