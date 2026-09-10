@@ -13,4 +13,6 @@ public class PairTradeResult
     public DateTime EndTime { get; set; }
     public decimal Result { get; set; }
     public decimal UnrealisedPl { get; set; }
+    public decimal Costs { get; set; }
+    public decimal NetPl { get; set; }
 }

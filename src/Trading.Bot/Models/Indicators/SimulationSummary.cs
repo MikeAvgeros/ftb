@@ -2,6 +2,7 @@
 
 public class SimulationSummary
 {
+    public string Strategy { get; set; }
     public int Days { get; set; }
     public int Candles { get; set; }
     public int Trades { get; set; }
@@ -13,4 +14,6 @@ public class SimulationSummary
     public double SellWinRate { get; set; }
     public int TradeRisk { get; set; }
     public double Balance { get; set; }
+    public decimal TotalCosts { get; set; }
+    public decimal NetPl { get; set; }
 }

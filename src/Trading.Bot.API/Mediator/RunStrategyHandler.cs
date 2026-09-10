@@ -35,6 +35,10 @@ public sealed record RunStrategyRequest : IHttpRequest
     
     public int? TradeRisk { get; set; }
 
+    public decimal? TransactionCost { get; set; }
+
+    public decimal? Slippage { get; set; }
+
     public bool? UpdateTrade { get; set; }
 
     public int GetInt(int index, int defaultValue) =>

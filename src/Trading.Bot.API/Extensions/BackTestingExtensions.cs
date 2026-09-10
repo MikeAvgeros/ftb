@@ -106,20 +106,27 @@ public static class BackTestingExtensions
     }
 
     public static IEnumerable<FileData<IEnumerable<object>>> GetFileData(this PairsIndicatorResult[] indicator,
-        string fileName, int tradeRisk)
+        string fileName, int tradeRisk, decimal transactionCostPerUnit = 0.00002m, decimal slippagePerUnit = 0.00002m)
     {
         var fileData = new List<FileData<IEnumerable<object>>>();
+        
+        var regimeAware = SimulatePairsTrade(indicator, tradeRisk, ind => ind.Signal,
+            transactionCostPerUnit, slippagePerUnit, "RegimeAware");
 
-        var tradingSim = SimulatePairsTrade(indicator, tradeRisk);
+        var pureMeanReversion = SimulatePairsTrade(indicator, tradeRisk, ind => ind.ReversionSignal,
+            transactionCostPerUnit, slippagePerUnit, "PureMeanReversion");
 
         fileData.Add(new FileData<IEnumerable<object>>(
             $"{fileName}.csv", indicator.Where(ma => ma.Signal != Signal.None)));
 
         fileData.Add(new FileData<IEnumerable<object>>(
-            $"{fileName}_Simulation.csv", tradingSim.Result));
+            $"{fileName}_RegimeAware_Simulation.csv", regimeAware.Result));
 
         fileData.Add(new FileData<IEnumerable<object>>(
-            $"{fileName}_Summary.csv", [tradingSim.Summary]));
+            $"{fileName}_PureMeanReversion_Simulation.csv", pureMeanReversion.Result));
+
+        fileData.Add(new FileData<IEnumerable<object>>(
+            $"{fileName}_Comparison.csv", [regimeAware.Summary, pureMeanReversion.Summary]));
 
         return fileData;
     }
@@ -223,8 +230,11 @@ public static class BackTestingExtensions
     }
 
     private static (PairTradeResult[] Result, SimulationSummary Summary) SimulatePairsTrade(
-        PairsIndicatorResult[] indicators, int tradeRisk)
+        PairsIndicatorResult[] indicators, int tradeRisk, Func<PairsIndicatorResult, Signal> signalSelector,
+        decimal transactionCostPerUnit, decimal slippagePerUnit, string strategyLabel)
     {
+        var costPerUnit = transactionCostPerUnit + slippagePerUnit;
+
         var length = indicators.Length;
 
         var openTrades = new List<PairTradeResult>();
@@ -234,22 +244,24 @@ public static class BackTestingExtensions
         for (var i = 0; i < length; i++)
         {
             UpdateUnrealisedPlForPairs(indicators[i], openTrades);
-            
-            if (indicators[i].Signal != Signal.None && openTrades.Count == 0)
+
+            var signal = signalSelector(indicators[i]);
+
+            if (signal != Signal.None && openTrades.Count == 0)
             {
                 openTrades.Add(new PairTradeResult
                 {
                     Running = true,
-                    CandleASignal = indicators[i].Signal == Signal.Buy
+                    CandleASignal = signal == Signal.Buy
                         ? Signal.Buy
                         : Signal.Sell,
-                    CandleBSignal = indicators[i].Signal == Signal.Buy
+                    CandleBSignal = signal == Signal.Buy
                         ? Signal.Sell
                         : Signal.Buy,
-                    TriggerAPrice = indicators[i].Signal == Signal.Buy
+                    TriggerAPrice = signal == Signal.Buy
                         ? indicators[i].CandleA.Ask_C
                         : indicators[i].CandleA.Bid_C,
-                    TriggerBPrice = indicators[i].Signal == Signal.Buy
+                    TriggerBPrice = signal == Signal.Buy
                         ? indicators[i].CandleB.Bid_C
                         : indicators[i].CandleB.Ask_C,
                     UnitsA = indicators[i].UnitsA,
@@ -262,20 +274,26 @@ public static class BackTestingExtensions
                 continue;
             }
 
-            UpdatePairsTrade(indicators[i], openTrades, closedTrades, tradeRisk);
+            UpdatePairsTrade(indicators[i], openTrades, closedTrades, tradeRisk, costPerUnit);
 
             openTrades.RemoveAll(ot => !ot.Running);
         }
 
-        ClosePairsTradesAtEndOfData(indicators, openTrades, closedTrades);
+        ClosePairsTradesAtEndOfData(indicators, openTrades, closedTrades, costPerUnit);
 
-        var summary = CalcPairsSimSummary(indicators, tradeRisk, closedTrades);
+        var summary = CalcPairsSimSummary(indicators, tradeRisk, closedTrades, strategyLabel);
 
-        return (closedTrades.ToArray(), summary);
+        return ([.. closedTrades], summary);
+    }
+
+    private static void ApplyClosingCosts(PairTradeResult trade, decimal costPerUnit)
+    {
+        trade.Costs = costPerUnit * (trade.UnitsA + trade.UnitsB);
+        trade.NetPl = trade.UnrealisedPl - trade.Costs;
     }
 
     private static void ClosePairsTradesAtEndOfData(PairsIndicatorResult[] indicators,
-        List<PairTradeResult> openTrades, List<PairTradeResult> closedTrades)
+        List<PairTradeResult> openTrades, List<PairTradeResult> closedTrades, decimal costPerUnit)
     {
         var lastIndicator = indicators[^1];
 
@@ -283,7 +301,10 @@ public static class BackTestingExtensions
         {
             trade.Running = false;
             trade.EndTime = lastIndicator.CandleA.Time;
-            trade.Result = trade.UnrealisedPl > 0 ? 1 : -1;
+
+            ApplyClosingCosts(trade, costPerUnit);
+
+            trade.Result = trade.NetPl > 0 ? 1 : -1;
 
             closedTrades.Add(trade);
         }
@@ -374,7 +395,7 @@ public static class BackTestingExtensions
     }
 
     private static void UpdatePairsTrade(PairsIndicatorResult indicator, List<PairTradeResult> openTrades,
-        List<PairTradeResult> closedTrades, int tradeRisk)
+        List<PairTradeResult> closedTrades, int tradeRisk, decimal costPerUnit)
     {
         var shouldExit = ShouldExitPairsTrade(openTrades, indicator, tradeRisk);
 
@@ -384,7 +405,10 @@ public static class BackTestingExtensions
             {
                 trade.Running = false;
                 trade.EndTime = indicator.CandleA.Time;
-                trade.Result = trade.UnrealisedPl > 0 ? 1 : -1;
+
+                ApplyClosingCosts(trade, costPerUnit);
+
+                trade.Result = trade.NetPl > 0 ? 1 : -1;
             }
 
             if (trade.Running) continue;
@@ -513,10 +537,11 @@ public static class BackTestingExtensions
     }
 
     private static SimulationSummary CalcPairsSimSummary(PairsIndicatorResult[] indicators, int tradeRisk,
-        List<PairTradeResult> closedTrades)
+        List<PairTradeResult> closedTrades, string strategyLabel)
     {
         var summary = new SimulationSummary
         {
+            Strategy = strategyLabel,
             Days = indicators.Last().CandleA.Time.Subtract(indicators.First().CandleA.Time).Days,
             Candles = indicators.Length,
             Trades = closedTrades.Count,
@@ -530,6 +555,10 @@ public static class BackTestingExtensions
         var winResultSum = closedTrades.Where(t => t.Result == 1).Sum(t => t.Result);
 
         summary.Balance = (double)Math.Round(winResultSum * tradeRisk - summary.Losses * tradeRisk, 2);
+
+        summary.TotalCosts = Math.Round(closedTrades.Sum(t => t.Costs), 2);
+
+        summary.NetPl = Math.Round(closedTrades.Sum(t => t.NetPl), 2);
 
         return summary;
     }

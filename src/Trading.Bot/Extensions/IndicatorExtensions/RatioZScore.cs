@@ -16,6 +16,8 @@ public static partial class Indicator
             ratios[i] = (double)(pairA[i].Mid_C / pairB[i].Mid_C);
         }
 
+        var totalVolume = pairA.Select((c, idx) => (double)(c.Volume + pairB[idx].Volume)).ToArray();
+
         var result = new PairsIndicatorResult[length];
 
         for (var i = 0; i < length; i++)
@@ -36,12 +38,22 @@ public static partial class Indicator
 
             result[i].ZScore = zScore;
 
-            result[i].Signal = zScore switch
+            var reversionSignal = zScore switch
             {
                 < -EntryZ => Signal.Buy,
                 > EntryZ => Signal.Sell,
                 _ => Signal.None
             };
+
+            var volumeHistory = totalVolume.Take(i + 1).TakeLast(window).ToArray();
+
+            var regime = ClassifySpreadRegime(zScore, ratioHistory, volumeHistory);
+
+            result[i].Regime = regime;
+
+            result[i].ReversionSignal = reversionSignal;
+
+            result[i].Signal = ResolveRegimeSignal(regime, reversionSignal);
 
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 

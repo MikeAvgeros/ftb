@@ -167,7 +167,7 @@ public class PairsTradeManager : BackgroundService
             return;
         }
 
-        var calcResult = candles[0].CalcMaDistanceZScore(candles[1], window).Last();
+        var calcResult = candles[0].CalcKalmanFilteredReturnSpread(candles[1], window).Last();
 
         var allOpenTrades = await _apiService.GetOpenTrades();
 

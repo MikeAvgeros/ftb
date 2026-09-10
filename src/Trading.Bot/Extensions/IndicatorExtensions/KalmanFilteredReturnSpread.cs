@@ -36,6 +36,8 @@ public static partial class Indicator
             spreadSeries[y] = returnsA[y] - beta * returnsB[y];
         }
 
+        var totalVolume = pairA.Select((c, idx) => (double)(c.Volume + pairB[idx].Volume)).ToArray();
+
         var length = pairA.Length;
 
         var result = new PairsIndicatorResult[length];
@@ -64,12 +66,22 @@ public static partial class Indicator
 
             result[i].ZScore = zScore;
 
-            result[i].Signal = zScore switch
+            var reversionSignal = zScore switch
             {
                 < -EntryZ when correlation > 0.6 => Signal.Buy,
                 > EntryZ when correlation > 0.6 => Signal.Sell,
                 _ => Signal.None
             };
+
+            var volumeHistory = totalVolume.Take(i + 1).TakeLast(window).ToArray();
+
+            var regime = ClassifySpreadRegime(zScore, spreadHistory, volumeHistory);
+
+            result[i].Regime = regime;
+
+            result[i].ReversionSignal = reversionSignal;
+
+            result[i].Signal = ResolveRegimeSignal(regime, reversionSignal);
 
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 

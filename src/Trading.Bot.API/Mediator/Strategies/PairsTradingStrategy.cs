@@ -10,6 +10,8 @@ public sealed class PairsTradingStrategy : IStrategy
         
         var maxSpread = request.MaxSpread ?? 0.0004m;
         var tradeRisk = request.TradeRisk ?? 10;
+        var transactionCost = request.TransactionCost ?? 0.00002m;
+        var slippage = request.Slippage ?? 0.00002m;
 
         if (request.Files.Count != 2) throw new ArgumentException("Strategy works with 2 pairs.");
 
@@ -31,7 +33,7 @@ public sealed class PairsTradingStrategy : IStrategy
 
         var fileName = $"PairsTrading_{instruments}_{granularity}";
 
-        fileData.AddRange(result.GetFileData(fileName, tradeRisk));
+        fileData.AddRange(result.GetFileData(fileName, tradeRisk, transactionCost, slippage));
 
         return Results.File(fileData.GetZipFromFileData(), "application/octet-stream", "PairsTrading.zip");
     }

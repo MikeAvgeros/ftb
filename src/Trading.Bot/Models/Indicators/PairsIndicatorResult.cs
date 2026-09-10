@@ -10,5 +10,7 @@
         public double ZScore { get; set; }
         public decimal UnitsA { get; set; }
         public decimal UnitsB { get; set; }
+        public SpreadRegime Regime { get; set; }
+        public Signal ReversionSignal { get; set; }
     }
 }
