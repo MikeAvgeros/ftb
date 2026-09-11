@@ -7,5 +7,6 @@ public class TradeConfiguration
     public bool NotifyOnly { get; set; }
     public bool PairsTrading { get; set; }
     public int TradeRisk { get; set; }
+    public TimeSpan MaxWinningTradeDuration { get; set; }
     public TradeSettings[] TradeSettings { get; set; }
 }

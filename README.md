@@ -1,44 +1,163 @@
 # ftb — Algorithmic Trading Bot
 
-An algorithmic trading system for [OANDA](https://www.oanda.com/) FX accounts.
+**ftb** is an algorithmic foreign-exchange trading system built on .NET 10 and designed to work with [OANDA](https://www.oanda.com/?utm_source=chatgpt.com) accounts.
 
-The system streams live prices, evaluates a library of technical and statistical indicators and strategies, and automatically places and manages trades. It also provides a companion HTTP API for account and candle inspection, as well as offline strategy backtesting.
+It can:
 
-## Solution Layout
+- 📈 Stream live FX prices from OANDA
+- 🧮 Calculate technical and statistical indicators
+- 🤖 Evaluate configurable trading strategies
+- 💱 Automatically open, manage and close trades
+- 🔗 Run pairs-trading strategies across correlated instruments
+- 🧪 Backtest strategies against historical candle data
+- 📊 Expose account, instrument and market-data information through an HTTP API
+- 📡 Export telemetry through OpenTelemetry, Prometheus and Grafana
+- 📧 Send email notifications for trading activity
 
-The solution consists of two .NET 10 projects:
-
-| Project               | Type                 | Purpose                                                                                                                                                                     |
-| --------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/Trading.Bot`     | .NET Worker Service  | Connects to OANDA's streaming and REST APIs, evaluates configured strategies on new candles, and places and manages live trades. Runs continuously as a background service. |
-| `src/Trading.Bot.API` | ASP.NET Core Web API | Provides read-only account, instrument, and candle endpoints, plus a `/api/simulation/run` endpoint for backtesting strategies against historical candles uploaded as CSV.  |
-
-Both projects target **.NET 10** and share the indicator/strategy library, models, and OANDA client code defined in `Trading.Bot`.
+The system is split into a **live trading worker** and a **Web API** for inspection and backtesting.
 
 ---
 
-## `Trading.Bot` — Live Trading Worker
+## How it works
 
-### `Services/`
+At a high level, the live trading flow looks like this:
 
-Background services and trading infrastructure:
+```text
+             OANDA
+               │
+               │ Live prices
+               ▼
+      ┌──────────────────┐
+      │OandaStreamService│
+      └────────┬─────────┘
+               │
+               ▼
+       ┌───────────────┐
+       │StreamProcessor│
+       └───────┬───────┘
+               │
+               ▼
+      ┌──────────────────┐
+      │ Indicators &     │
+      │ Strategies       │
+      └────────┬─────────┘
+               │
+               ▼
+      ┌──────────────────┐
+      │   TradeManager   │
+      │/PairsTradeManager│
+      └────────┬─────────┘
+               │
+               ▼
+             OANDA
+          Orders / Trades
+```
 
-- **`OandaApiService`** — REST client for OANDA, providing access to candles, instruments, orders, trades, and account information.
-- **`OandaStreamService` / `StreamProcessor` / `StreamWorker`** — Consume and process OANDA's live price stream.
-- **`LiveTradeCache`** — In-memory cache of live prices and open trades.
-- **`TradeManager`** — Evaluates single-instrument strategies and executes trades.
-- **`PairsTradeManager`** — Evaluates pairs-trading strategies across two correlated instruments and manages both legs as a unit, including entry, exit, and partial-fill rollback.
-- **`RolloverManager`** — Optionally flattens positions around the daily rollover period.
-- **`EmailService`** — Sends trade notification emails.
+Historical data follows a similar path through the backtesting API, except that the live market and order execution are replaced by historical candles and a simulation engine.
 
-### `Extensions/IndicatorExtensions/`
+---
 
-The indicator and strategy library.
+# Solution structure
 
-Each file contains an extension method on `Candle[]` that returns an array of indicator results:
+The solution contains two .NET 10 applications:
 
-- `IndicatorResult[]` for single-instrument strategies.
-- `PairsIndicatorResult[]` for pairs-trading strategies.
+| Project               | Type                 | Responsibility                                                 |
+| --------------------- | -------------------- | -------------------------------------------------------------- |
+| `src/Trading.Bot`     | .NET Worker Service  | Live market streaming, strategy evaluation and trade execution |
+| `src/Trading.Bot.API` | ASP.NET Core Web API | Account/market inspection and historical strategy backtesting  |
+
+Both applications share the indicator, strategy, model and OANDA client code contained in `Trading.Bot`.
+
+---
+
+# `Trading.Bot` — Live Trading
+
+`Trading.Bot` is the continuously running worker responsible for interacting with OANDA and managing live trading.
+
+## Services
+
+The `Services/` directory contains the main trading infrastructure.
+
+### `OandaApiService`
+
+REST client for OANDA.
+
+It provides access to:
+
+- Historical candles
+- Instruments
+- Account information
+- Orders
+- Trades
+- Other OANDA REST resources
+
+### `OandaStreamService`
+
+Connects to OANDA's streaming API and receives live price updates.
+
+### `StreamProcessor` / `StreamWorker`
+
+Process the incoming market stream and feed new market data into the trading system.
+
+### `LiveTradeCache`
+
+Maintains an in-memory view of:
+
+- Live prices
+- Open trades
+- Other state required during live trading
+
+### `TradeManager`
+
+Handles single-instrument strategies.
+
+It evaluates strategy signals and is responsible for executing and managing the resulting trades.
+
+### `PairsTradeManager`
+
+Handles pairs-trading strategies involving two correlated instruments.
+
+The two legs are treated as a single trading unit, including:
+
+- Entry
+- Exit
+- Position management
+- Partial-fill handling
+- Rollback when one leg cannot be completed
+
+### `RolloverManager`
+
+Optionally flattens open positions around the daily FX rollover period.
+
+### `EmailService`
+
+Sends email notifications for relevant trading events.
+
+---
+
+# Indicators & Strategies
+
+The indicator and strategy library lives under:
+
+```text
+Trading.Bot/
+└── Extensions/
+    └── IndicatorExtensions/
+```
+
+Each indicator is implemented as an extension method over `Candle[]` and produces a sequence of calculated results.
+
+Single-instrument strategies use:
+
+```text
+IndicatorResult[]
+```
+
+Pairs-trading strategies use:
+
+```text
+PairsIndicatorResult[]
+```
 
 Examples include:
 
@@ -53,190 +172,179 @@ Examples include:
 - `CalcKalmanFilteredReturnSpread`
 - `CalcEqualWeightedZScore`
 
-### `Extensions/NumericExtensions.cs`
+The intention is to keep the indicator calculations reusable across both **live trading** and **backtesting**.
 
-Shared numerical building blocks used across indicators and strategies, including:
+---
+
+# Numerical & Statistical Calculations
+
+Shared numerical operations are contained in:
+
+```text
+Trading.Bot/
+└── Extensions/
+    └── NumericExtensions.cs
+```
+
+These provide the mathematical building blocks used by the indicators and strategies, including:
 
 - Moving averages
-- Standard deviations
+- Standard deviation
 - Z-scores
-- Correlation and beta
-- Kalman filter calculations
+- Correlation
+- Beta
+- Kalman filtering
 - Winsorization
-- Other statistical and numerical operations
+- Other statistical calculations
 
-### `Configuration/`
+Keeping these operations separate means strategies can compose the same numerical primitives without duplicating the underlying calculations.
 
-Strongly typed application settings:
+---
+
+# Configuration
+
+Application configuration lives under:
+
+```text
+Trading.Bot/
+└── Configuration/
+```
+
+The main configuration types are:
 
 - `TradeConfiguration`
 - `TradeSettings`
 - `EmailConfiguration`
-- OANDA constants
 
-These are bound from `appsettings.json`.
+OANDA-related constants are also defined here.
 
-### `Models/`
+Configuration is bound from `appsettings.json`, with `appsettings.Development.json` providing local development overrides.
 
-Shared models, including:
+## `TradeConfiguration`
 
-- DTOs
-- API response models
-- Indicator result models
-- Enums such as `Signal` and `SpreadRegime`
-
----
-
-## `Trading.Bot.API` — Backtesting & Inspection API
-
-### `Endpoints/`
-
-Minimal API endpoints:
-
-| Method | Endpoint              | Purpose                                                           |
-| ------ | --------------------- | ----------------------------------------------------------------- |
-| `GET`  | `/api/account`        | Returns an account summary.                                       |
-| `GET`  | `/api/candles`        | Retrieves historical candles for an instrument.                   |
-| `GET`  | `/api/instruments`    | Returns instrument metadata.                                      |
-| `POST` | `/api/simulation/run` | Runs a selected strategy against uploaded historical candle data. |
-
-### `Mediator/Strategies/`
-
-Contains one `IStrategy` implementation for each `StrategyType`.
-
-Each strategy maps a `RunStrategyRequest` — including window sizes, thresholds, and risk settings — onto the corresponding indicator function and simulator.
-
-### `Extensions/BackTestingExtensions.cs`
-
-Contains the backtesting simulator.
-
-The simulator:
-
-1. Replays indicator output bar-by-bar.
-2. Opens and closes simulated trades according to generated signals.
-3. Applies transaction costs and slippage.
-4. Produces `SimulationSummary` statistics such as win rate and balance.
-
-Pairs-trading strategies are simulated twice per run:
-
-- **Regime-aware strategy** — respects the strategy's classification of mean-reversion and continuation signals.
-- **Pure mean-reversion baseline** — treats all qualifying spread deviations as mean-reversion opportunities.
-
-Both runs use identical transaction-cost and slippage assumptions, allowing their performance to be compared directly.
-
-### `Diagnostics/`
-
-OpenTelemetry configuration for tracing and metrics export.
-
----
-
-## Configuration
-
-Runtime configuration is stored in each project's `appsettings.json`, with `appsettings.Development.json` providing local overrides.
-
-### `Constants`
-
-OANDA configuration, including:
-
-- API key
-- Account ID
-- REST API base URL
-- Streaming API base URL
-
-### `TradeConfiguration`
-
-Trading configuration, including:
+Controls the overall behaviour of the trading system, including:
 
 - Trading mode
 - Pairs-trading enablement
 - Risk per trade
 - Email notifications
-- Instrument-specific `TradeSettings`
+- Instrument-specific trading settings
 
-Each `TradeSettings` entry contains parameters such as:
+Each `TradeSettings` entry can define parameters such as:
 
 - Candle granularity
 - Indicator windows
 - Indicator thresholds
 - Maximum spread
 - Risk/reward
-- Trailing stop
+- Trailing stops
 
-### `EmailConfiguration`
-
-SMTP configuration used for trade notification emails.
-
-> **Do not commit real API keys or credentials.**
-
-The values committed to `appsettings.json` are placeholders or practice-account values. CI replaces sensitive values at build time using GitHub Actions secrets (see `.github/workflows/docker-image.yml`). Production secrets are injected in the same way and are not stored in the repository.
+This allows different instruments and strategies to be configured independently.
 
 ---
 
-## Building & Running
+# `Trading.Bot.API` — Backtesting & Inspection
 
-Build the entire solution:
+`Trading.Bot.API` provides an HTTP API for inspecting the account and market data, as well as running historical strategy simulations.
 
-```bash
-dotnet build
-```
+## Endpoints
 
-Run the live trading bot:
+| Method | Endpoint              | Description                                             |
+| ------ | --------------------- | ------------------------------------------------------- |
+| `GET`  | `/api/account`        | Returns an account summary                              |
+| `GET`  | `/api/candles`        | Retrieves historical candles for an instrument          |
+| `GET`  | `/api/instruments`    | Returns instrument metadata                             |
+| `POST` | `/api/simulation/run` | Runs a strategy against uploaded historical candle data |
 
-```bash
-dotnet run --project src/Trading.Bot
-```
+The API is intentionally separate from live trade execution. Its simulation endpoint can therefore be used to experiment with strategies without placing real orders.
 
-Run the backtesting and inspection API:
+---
 
-```bash
-dotnet run --project src/Trading.Bot.API
-```
+# Strategy execution
 
-Both projects also include Dockerfiles for containerized deployment:
+The strategy implementations live under:
 
 ```text
-src/Trading.Bot/Dockerfile
-src/Trading.Bot.API/Dockerfile
+Trading.Bot.API/
+└── Mediator/
+    └── Strategies/
 ```
+
+There is one `IStrategy` implementation for each `StrategyType`.
+
+A strategy takes a `RunStrategyRequest`, which contains the parameters required by that strategy, and connects the relevant indicator calculation to the simulation engine.
+
+This keeps the strategy selection and configuration separate from the underlying indicator calculations and trading simulation.
 
 ---
 
-## Observability
+# Backtesting
 
-The `observability/docker-compose.yml` file provides a local observability stack containing:
+The backtesting engine is implemented in:
 
-- OpenTelemetry Collector
-- Prometheus
-- Grafana
-- Preconfigured Grafana datasource
-
-Start the stack with:
-
-```bash
-docker compose -f observability/docker-compose.yml up
+```text
+Trading.Bot.API/
+└── Extensions/
+    └── BackTestingExtensions.cs
 ```
+
+A simulation works by replaying historical candles and processing the resulting indicator values one bar at a time.
+
+The simulator:
+
+1. Calculates/replays indicator output for each bar.
+2. Generates trading signals.
+3. Opens and closes simulated positions.
+4. Applies transaction costs.
+5. Applies slippage.
+6. Produces summary statistics.
+
+The resulting `SimulationSummary` includes metrics such as:
+
+- Balance
+- Number of trades
+- Win rate
+- Other performance statistics
+
+## Pairs-trading comparison
+
+Pairs-trading strategies are evaluated in two ways during a simulation.
+
+### Regime-aware strategy
+
+Uses the strategy's classification of market regimes to determine whether a spread movement should be treated as a mean-reversion or continuation opportunity.
+
+### Pure mean-reversion baseline
+
+Treats qualifying spread deviations as mean-reversion opportunities regardless of the detected regime.
+
+Both simulations use the **same transaction costs and slippage assumptions**, making the two approaches directly comparable.
 
 ---
 
-## Backtesting a Strategy
+# Running a backtest
 
-### 1. Prepare historical data
+## 1. Prepare historical data
 
-Export historical candles for each instrument to CSV using the format expected by:
+Export historical candles for the required instrument(s) as CSV using the format expected by:
 
 ```text
 GetObjectFromCsv<Candle>
 ```
 
-### 2. Run the simulation
+For pairs strategies, provide the historical data required for both instruments.
 
-Send the candle CSV files to:
+## 2. Run the simulation
+
+Send the candle CSV file(s) to:
 
 ```text
 POST /api/simulation/run
 ```
 
-Use the query string to select the `StrategyType` and provide its parameters, including:
+The strategy is selected using the `StrategyType` query parameter.
+
+Strategy-specific parameters are supplied through `RunStrategyRequest`, including values such as:
 
 - `Ints`
 - `Doubles`
@@ -245,18 +353,171 @@ Use the query string to select the `StrategyType` and provide its parameters, in
 - `TransactionCost`
 - `Slippage`
 
-See `RunStrategyRequest` for the complete set of available parameters.
+See `RunStrategyRequest` for the complete parameter set.
 
-### 3. Review the results
+## 3. Analyse the results
 
-The response is a ZIP archive containing:
+The API returns a ZIP archive containing:
 
-- Raw signal data
-- Simulated trade-by-trade results
-- Simulation summary statistics
+```text
+simulation-results.zip
+├── Signal data
+├── Simulated trades
+└── Simulation summary
+```
 
 For pairs-trading strategies, the archive additionally contains:
 
-- Regime-aware simulation results
-- Pure mean-reversion baseline results
-- Comparison summary
+```text
+├── Regime-aware results
+├── Pure mean-reversion results
+└── Comparison summary
+```
+
+This makes it possible to inspect the individual signals and trades as well as the overall performance of the strategy.
+
+---
+
+# Observability
+
+The repository includes a local observability stack under:
+
+```text
+observability/
+└── docker-compose.yml
+```
+
+It provides:
+
+- **OpenTelemetry Collector** — collects application telemetry
+- **Prometheus** — stores metrics
+- **Grafana** — visualises metrics
+- **Preconfigured Grafana datasource** — connects Grafana to Prometheus
+
+Start the stack with:
+
+```bash
+docker compose -f observability/docker-compose.yml up
+```
+
+The application also contains OpenTelemetry configuration under:
+
+```text
+Trading.Bot.API/
+└── Diagnostics/
+```
+
+---
+
+# Building & running
+
+## Build the solution
+
+```bash
+dotnet build
+```
+
+## Run the live trading worker
+
+```bash
+dotnet run --project src/Trading.Bot
+```
+
+## Run the API
+
+```bash
+dotnet run --project src/Trading.Bot.API
+```
+
+Both applications also include Dockerfiles for containerised deployment:
+
+```text
+src/Trading.Bot/Dockerfile
+src/Trading.Bot.API/Dockerfile
+```
+
+---
+
+# Configuration & secrets
+
+OANDA configuration includes:
+
+- API key
+- Account ID
+- REST API base URL
+- Streaming API base URL
+
+Email configuration contains the SMTP settings required for trade notifications.
+
+> ⚠️ **Never commit real API keys, passwords or other credentials to the repository.**
+
+The committed values in `appsettings.json` are placeholders or practice-account values.
+
+For CI/CD, sensitive values are supplied through **GitHub Actions secrets** and injected during the build/deployment process. Production secrets are handled in the same way and are not stored in the repository.
+
+The relevant workflow is:
+
+```text
+.github/workflows/docker-image.yml
+```
+
+---
+
+# Technology
+
+The project is built around:
+
+- **.NET 10**
+- **C#**
+- **ASP.NET Core Minimal APIs**
+- **OANDA REST & streaming APIs**
+- **OpenTelemetry**
+- **Prometheus**
+- **Grafana**
+- **Docker**
+- **GitHub Actions**
+
+The core trading calculations are implemented directly in C# so that the same indicator and strategy logic can be used for both **live trading and historical backtesting**.
+
+---
+
+# Project at a glance
+
+```text
+ftb
+│
+├── src/
+│   ├── Trading.Bot
+│   │   │
+│   │   ├── Services/
+│   │   │   ├── OandaApiService
+│   │   │   ├── OandaStreamService
+│   │   │   ├── StreamProcessor
+│   │   │   ├── TradeManager
+│   │   │   ├── PairsTradeManager
+│   │   │   └── RolloverManager
+│   │   │
+│   │   ├── Extensions/
+│   │   │   ├── IndicatorExtensions/
+│   │   │   └── NumericExtensions.cs
+│   │   │
+│   │   ├── Configuration/
+│   │   └── Models/
+│   │
+│   └── Trading.Bot.API
+│       │
+│       ├── Endpoints/
+│       ├── Mediator/
+│       │   └── Strategies/
+│       ├── Extensions/
+│       │   └── BackTestingExtensions.cs
+│       └── Diagnostics/
+│
+├── observability/
+│   └── docker-compose.yml
+│
+└── .github/
+    └── workflows/
+```
+
+In short, **`Trading.Bot` handles the live market and trading lifecycle, while `Trading.Bot.API` provides the tools needed to inspect data and test strategies against historical markets.**

@@ -163,7 +163,7 @@ public class PairsTradeManager : BackgroundService
 
         if (candles.Any(c => c.Length == 0))
         {
-            _logger.LogInformation("Not placing a trade for {Pairs}, candles not found", _instrumentNames);
+            _logger.LogWarning("Not placing a trade for {Pairs}, candles not found", _instrumentNames);
             return;
         }
 
@@ -175,7 +175,7 @@ public class PairsTradeManager : BackgroundService
 
         var pairTrades = allOpenTrades.Where(ot => pairInstruments.Contains(ot.Instrument)).ToArray();
 
-        if (ShouldExitTrade(pairTrades, calcResult, _tradeConfiguration.TradeRisk))
+        if (ShouldExitTrade(pairTrades, calcResult, _tradeConfiguration.TradeRisk, _tradeConfiguration.MaxWinningTradeDuration))
         {
             var closeResults = await Task.WhenAll(pairTrades.Select(trade => _apiService.CloseTrade(trade.Id)));
 
@@ -206,13 +206,13 @@ public class PairsTradeManager : BackgroundService
     {
         if (pairTrades.Length > 0)
         {
-            _logger.LogInformation("Cannot place trade for {Pairs}, already open.", _instrumentNames);
+            _logger.LogWarning("Cannot place trade for {Pairs}, already open.", _instrumentNames);
             return;
         }
 
         if (tradeSettings.Any(settings => !_instrumentsByName.ContainsKey(settings.Instrument)))
         {
-            _logger.LogInformation("Cannot place trade for {Pairs}, not found in config.", _instrumentNames);
+            _logger.LogWarning("Cannot place trade for {Pairs}, not found in config.", _instrumentNames);
             return;
         }
 
@@ -301,14 +301,14 @@ public class PairsTradeManager : BackgroundService
     }
 
     private static bool ShouldExitTrade(TradeResponse[] openTrades, PairsIndicatorResult indicator,
-        int tradeRisk)
+        int tradeRisk, TimeSpan maxWinningTradeDuration)
     {
         if (openTrades.Length == 0) return false;
 
         var totalPl = openTrades.Sum(ot => ot.UnrealizedPL);
 
         return CanTakeProfit(indicator, totalPl) ||
-               HasOverExposureWithProfit(DateTime.UtcNow, openTrades) ||
+               HasExceededMaxWinningDuration(DateTime.UtcNow, openTrades, maxWinningTradeDuration) ||
                indicator.StopLoss || totalPl < -tradeRisk;
     }
 
@@ -317,7 +317,9 @@ public class PairsTradeManager : BackgroundService
         return indicator.TakeProfit && totalPl > 0;
     }
 
-    private static bool HasOverExposureWithProfit(DateTime currentTime, TradeResponse[] openTrades)
-        => openTrades.Any(ot => currentTime.Subtract(ot.OpenTime) >= TimeSpan.FromHours(1)) &&
+    private static bool HasExceededMaxWinningDuration(DateTime currentTime, TradeResponse[] openTrades,
+        TimeSpan maxWinningTradeDuration)
+        => maxWinningTradeDuration > TimeSpan.Zero &&
+           openTrades.Any(ot => currentTime.Subtract(ot.OpenTime) >= maxWinningTradeDuration) &&
            openTrades.Sum(ot => ot.UnrealizedPL) > 0;
 }

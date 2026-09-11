@@ -126,7 +126,7 @@ public class TradeManager : BackgroundService
 
         if (candles.Length == 0 || candles.Any(c => c.Length == 0))
         {
-            _logger.LogInformation("Not placing a trade for {Instrument}, candles not found", settings.Instrument);
+            _logger.LogWarning("Not placing a trade for {Instrument}, candles not found", settings.Instrument);
             return;
         }
 
@@ -141,10 +141,14 @@ public class TradeManager : BackgroundService
 
         if (openTrades.FirstOrDefault(ot => ot.Instrument == settings.Instrument) is { } openTrade)
         {
-            if (await CloseOppositeTrade(currentIndicator, openTrade) ||
-                await UpdateWinningTrade(currentIndicator, openTrade))
+            if (await CloseWinningTradeIfDurationExceeded(openTrade) ||
+                await CloseOppositeTrade(currentIndicator, openTrade))
             {
-                openTrades = openTrades.Where(ot => ot.Id != openTrade.Id).ToArray();
+                openTrades = [.. openTrades.Where(ot => ot.Id != openTrade.Id)];
+            }
+            else
+            {
+                await UpdateWinningTrade(currentIndicator, openTrade);
             }
         }
         
@@ -163,13 +167,13 @@ public class TradeManager : BackgroundService
     {
         if (openTrades.Any(ot => ot.Instrument == settings.Instrument))
         {
-            _logger.LogInformation("Cannot place trade for {Instrument}, already open.", settings.Instrument);
+            _logger.LogWarning("Cannot place trade for {Instrument}, already open.", settings.Instrument);
             return;
         }
 
         if (!_instrumentsByName.TryGetValue(settings.Instrument, out var instrument))
         {
-            _logger.LogInformation("Cannot place trade for {Instrument}, not found in config.", settings.Instrument);
+            _logger.LogWarning("Cannot place trade for {Instrument}, not found in config.", settings.Instrument);
             return;
         }
         
@@ -247,6 +251,24 @@ public class TradeManager : BackgroundService
         return perPipLoss / (price.HomeConversion * pipLocation);
     }
     
+    private async Task<bool> CloseWinningTradeIfDurationExceeded(TradeResponse openTrade)
+    {
+        if (!HasExceededMaxWinningDuration(openTrade)) return false;
+
+        await _apiService.CloseTrade(openTrade.Id);
+
+        return true;
+    }
+
+    private bool HasExceededMaxWinningDuration(TradeResponse openTrade)
+    {
+        var maxWinningTradeDuration = _tradeConfiguration.MaxWinningTradeDuration;
+
+        return maxWinningTradeDuration > TimeSpan.Zero &&
+               DateTime.UtcNow.Subtract(openTrade.OpenTime) >= maxWinningTradeDuration &&
+               openTrade.UnrealizedPL > 0;
+    }
+
     private async Task<bool> CloseOppositeTrade(IndicatorResult indicator, TradeResponse openTrade)
     {
         if (indicator.Signal is Signal.None) return false;
@@ -262,18 +284,18 @@ public class TradeManager : BackgroundService
         return true;
     }
 
-    private async Task<bool> UpdateWinningTrade(IndicatorResult indicator, TradeResponse openTrade)
+    private async Task UpdateWinningTrade(IndicatorResult indicator, TradeResponse openTrade)
     {
         var currentValue = openTrade.InitialUnits > 0
             ? indicator.Candle.Ask_C
             : indicator.Candle.Bid_C;
 
-        if (!ShouldAddTrailingStop(openTrade, currentValue)) return false;
+        if (!ShouldAddTrailingStop(openTrade, currentValue)) return;
 
         if (!_instrumentsByName.TryGetValue(openTrade.Instrument, out var instrument))
         {
-            _logger.LogInformation("Cannot update trade for {Instrument}, not found in config.", openTrade.Instrument);
-            return false;
+            _logger.LogWarning("Cannot update trade for {Instrument}, not found in config.", openTrade.Instrument);
+            return;
         }
 
         var displayPrecision = instrument.DisplayPrecision;
@@ -283,8 +305,6 @@ public class TradeManager : BackgroundService
         var update = new OrderUpdate(displayPrecision: displayPrecision, trailingStop: trailingStop);
 
         await _apiService.UpdateTrade(update, openTrade.Id);
-
-        return true;
     }
 
     private static bool ShouldAddTrailingStop(TradeResponse trade, decimal currentValue)
