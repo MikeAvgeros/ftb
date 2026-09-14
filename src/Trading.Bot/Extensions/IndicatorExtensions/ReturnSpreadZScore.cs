@@ -33,11 +33,11 @@ public static partial class Indicator
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
             
-            var returnAHistory = returnsA.Take(i).TakeLast(window).ToArray().Winsorize();
+            var returnAHistory = returnsA.Take(i).TakeLast(window).ToArray();
 
-            var returnBHistory = returnsB.Take(i).TakeLast(window).ToArray().Winsorize();
+            var returnBHistory = returnsB.Take(i).TakeLast(window).ToArray();
 
-            var beta = returnAHistory.CalcBeta(returnBHistory);
+            var beta = returnAHistory.Winsorize().CalcBeta(returnBHistory.Winsorize());
 
             var spreadHistory = new double[window];
 

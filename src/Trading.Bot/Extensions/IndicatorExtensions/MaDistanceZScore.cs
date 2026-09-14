@@ -29,15 +29,15 @@ public static partial class Indicator
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
 
-            var pricesAHistory = pricesA.Take(i + 1).TakeLast(window).ToArray().Winsorize();
+            var pricesAHistory = pricesA.Take(i + 1).TakeLast(window).ToArray();
 
-            var pricesBHistory = pricesB.Take(i + 1).TakeLast(window).ToArray().Winsorize();
+            var pricesBHistory = pricesB.Take(i + 1).TakeLast(window).ToArray();
 
             var distanceA = pricesAHistory.Select(v => v - pricesAHistory.Average()).ToArray();
 
             var distanceB = pricesBHistory.Select(v => v - pricesBHistory.Average()).ToArray();
-            
-            var beta = distanceA.CalcBeta(distanceB);
+
+            var beta = distanceA.Winsorize().CalcBeta(distanceB.Winsorize());
 
             var diff = new double[window];
 

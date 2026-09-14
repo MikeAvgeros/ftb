@@ -29,11 +29,11 @@ public static partial class Indicator
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
 
-            var pairAHistory = pairAPrices.Take(i + 1).TakeLast(window).ToArray().Winsorize();
+            var pairAHistory = pairAPrices.Take(i + 1).TakeLast(window).ToArray();
 
-            var pairBHistory = pairBPrices.Take(i + 1).TakeLast(window).ToArray().Winsorize();
+            var pairBHistory = pairBPrices.Take(i + 1).TakeLast(window).ToArray();
 
-            var beta = pairAHistory.CalcBeta(pairBHistory);
+            var beta = pairAHistory.Winsorize().CalcBeta(pairBHistory.Winsorize());
 
             var spreadHistory = new double[window];
 

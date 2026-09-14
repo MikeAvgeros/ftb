@@ -60,7 +60,7 @@ public static partial class Indicator
 
             var correlation = returnAHistory.CalcCorrelation(returnBHistory);
 
-            var spreadHistory = spreadSeries.Take(i).TakeLast(window).ToArray().Winsorize();
+            var spreadHistory = spreadSeries.Take(i).TakeLast(window).ToArray();
 
             var zScore = spreadHistory.CalcWinsorizedZScore();
 

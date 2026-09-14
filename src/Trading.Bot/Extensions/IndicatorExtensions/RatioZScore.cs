@@ -32,7 +32,7 @@ public static partial class Indicator
 
             if (pairA[i].Spread > maxSpread || pairB[i].Spread > maxSpread) continue;
 
-            var ratioHistory = ratios.Take(i + 1).TakeLast(window).ToArray().Winsorize();
+            var ratioHistory = ratios.Take(i + 1).TakeLast(window).ToArray();
 
             var zScore = ratioHistory.CalcWinsorizedZScore();
 
@@ -59,7 +59,7 @@ public static partial class Indicator
 
             result[i].StopLoss = Math.Abs(zScore) > StopZ;
 
-            var averageRatio = ratioHistory.Average();
+            var averageRatio = ratioHistory.Winsorize().Average();
 
             result[i].Beta = averageRatio > 0 ? (decimal)averageRatio : 1m;
 
