@@ -22,7 +22,7 @@ public sealed class PairsTradingStrategy : IStrategy
         
         var window = request.GetInt(0, 50);
 
-        var result = pairA.CalcReturnSpreadZScore(pairB, window, maxSpread);
+        var result = pairA.CalcKalmanFilteredReturnSpread(pairB, window, maxSpread);
 
         var instruments = string.Join("",
             request.Files[0].FileName[..request.Files[0].FileName.LastIndexOf('_')].Concat(

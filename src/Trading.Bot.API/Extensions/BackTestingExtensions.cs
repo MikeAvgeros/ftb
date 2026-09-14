@@ -160,6 +160,11 @@ public static class BackTestingExtensions
 
         using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
+        csv.Context.TypeConverterOptionsCache.AddOptions<decimal>(new TypeConverterOptions
+        {
+            NumberStyles = NumberStyles.Float | NumberStyles.AllowThousands
+        });
+
         return csv.GetRecords<T>().ToArray();
     }
 
@@ -551,10 +556,6 @@ public static class BackTestingExtensions
         };
 
         summary.WinRate = CalcWinRate(summary.Wins, summary.Trades - summary.Unknown);
-
-        var winResultSum = closedTrades.Where(t => t.Result == 1).Sum(t => t.Result);
-
-        summary.Balance = (double)Math.Round(winResultSum * tradeRisk - summary.Losses * tradeRisk, 2);
 
         summary.TotalCosts = Math.Round(closedTrades.Sum(t => t.Costs), 2);
 
