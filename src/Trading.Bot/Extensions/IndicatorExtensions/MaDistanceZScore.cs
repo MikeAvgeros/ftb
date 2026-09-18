@@ -59,13 +59,15 @@ public static partial class Indicator
 
             var volumeHistory = totalVolume.Take(i + 1).TakeLast(window).ToArray();
 
-            var regime = ClassifySpreadRegime(zScore, diff, volumeHistory);
+            var regime = zScore.ClassifySpreadRegime(diff, volumeHistory, EntryZ,
+                MomentumShortWindowDivisor, MomentumZThreshold, VolumeZThreshold, LowVolumeZThreshold,
+                VolatilitySpikeRatio);
 
             result[i].Regime = regime;
 
             result[i].ReversionSignal = reversionSignal;
 
-            result[i].Signal = ResolveRegimeSignal(regime, reversionSignal);
+            result[i].Signal = regime.ResolveRegimeSignal(reversionSignal);
 
             result[i].TakeProfit = Math.Abs(zScore) < ExitZ;
 

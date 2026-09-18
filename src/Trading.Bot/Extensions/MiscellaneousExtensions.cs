@@ -49,4 +49,17 @@ public static class MiscellaneousExtensions
             _ => 0
         };
     }
+
+    public static Signal GetContinuationSignal(this Signal reversionSignal) => (Signal)(-(int)reversionSignal);
+
+    public static Signal ResolveRegimeSignal(this SpreadRegime regime, Signal reversionSignal)
+    {
+        return regime switch
+        {
+            SpreadRegime.LowVolumeReversion or SpreadRegime.VolatilitySpikeReversion => reversionSignal,
+            SpreadRegime.MomentumContinuation or SpreadRegime.AbnormalVolumeContinuation =>
+                reversionSignal.GetContinuationSignal(),
+            _ => Signal.None
+        };
+    }
 }

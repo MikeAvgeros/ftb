@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Trading.Bot", "src\Trading.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trading.Bot.API", "src\Trading.Bot.API\Trading.Bot.API.csproj", "{0EF8AF98-00A9-462A-9D61-D01912137F24}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trading.Bot.Tests", "src\Trading.Bot.Tests\Trading.Bot.Tests.csproj", "{E6D010EF-DF69-47AD-B7CF-5CD8DCB1AFDB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,8 @@ Global
 		{0EF8AF98-00A9-462A-9D61-D01912137F24}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0EF8AF98-00A9-462A-9D61-D01912137F24}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0EF8AF98-00A9-462A-9D61-D01912137F24}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E6D010EF-DF69-47AD-B7CF-5CD8DCB1AFDB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E6D010EF-DF69-47AD-B7CF-5CD8DCB1AFDB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

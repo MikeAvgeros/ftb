@@ -412,4 +412,55 @@ public static class NumericExtensions
     {
         return zScores.Count == 0 ? 0.0 : zScores.Average();
     }
+
+    public static SpreadRegime ClassifySpreadRegime(
+        this double zScore,
+        double[] spreadHistory,
+        double[] volumeHistory,
+        double entryZ,
+        int momentumShortWindowDivisor,
+        double momentumZThreshold,
+        double volumeZThreshold,
+        double lowVolumeZThreshold,
+        double volatilitySpikeRatio)
+    {
+        if (Math.Abs(zScore) < entryZ) return SpreadRegime.None;
+
+        if (spreadHistory.Length < 3) return SpreadRegime.Ambiguous;
+
+        var window = spreadHistory.Length;
+
+        var shortWindow = Math.Max(3, window / momentumShortWindowDivisor);
+
+        var longVolatility = spreadHistory.CalcRolStdDev(window)[^1];
+
+        var shortVolatility = spreadHistory.CalcRolStdDev(shortWindow)[^1];
+
+        var volatilityRatio = longVolatility == 0 ? 0 : shortVolatility / longVolatility;
+
+        var trend = spreadHistory.CalcTrendLine();
+
+        var momentumScore = longVolatility == 0 ? 0 : (trend[^1] - trend[0]) / longVolatility;
+
+        var volumeZ = volumeHistory.CalcWinsorizedZScore();
+
+        var hasMomentum = Math.Abs(momentumScore) > momentumZThreshold &&
+                           Math.Sign(momentumScore) == Math.Sign(zScore);
+
+        var hasAbnormalVolume = volumeZ > volumeZThreshold;
+
+        var hasLowVolume = volumeZ < lowVolumeZThreshold;
+
+        var hasVolatilitySpike = volatilityRatio > volatilitySpikeRatio;
+
+        if (hasMomentum) return SpreadRegime.MomentumContinuation;
+
+        if (hasAbnormalVolume) return SpreadRegime.AbnormalVolumeContinuation;
+
+        if (hasLowVolume) return SpreadRegime.LowVolumeReversion;
+
+        if (hasVolatilitySpike) return SpreadRegime.VolatilitySpikeReversion;
+
+        return SpreadRegime.Ambiguous;
+    }
 }
