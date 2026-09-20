@@ -6,7 +6,7 @@ public static class MiscellaneousExtensions
     {
         if (candleSpan.Days != 0)
         {
-            return new DateTime(time.Year, time.Month, time.Day - time.Day % candleSpan.Days,
+            return new DateTime(time.Year, time.Month, Math.Max(1, time.Day - time.Day % candleSpan.Days),
                 0, 0, 0);
         }
 

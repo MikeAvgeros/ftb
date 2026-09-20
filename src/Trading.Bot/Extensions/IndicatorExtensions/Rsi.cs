@@ -38,15 +38,15 @@ public static partial class Indicator
 
         for (var i = 0; i < length; i++)
         {
-            if (i < window)
+            if (i <= window)
             {
                 sumGain += gains[i];
                 
                 sumLoss += losses[i];
 
                 var rsiValue = 0.0;
-                
-                if (i == window - 1)
+
+                if (i == window)
                 {
                     sumGain /= window;
                     
@@ -67,8 +67,8 @@ public static partial class Indicator
                 result[i] = new RsiResult
                 {
                     Candle = candles[i],
-                    AverageGain = i == window - 1 ? sumGain : 0.0,
-                    AverageLoss = i == window - 1 ? sumLoss : 0.0,
+                    AverageGain = i == window ? sumGain : 0.0,
+                    AverageLoss = i == window ? sumLoss : 0.0,
                     Rsi = rsiValue
                 };
                 
@@ -88,7 +88,7 @@ public static partial class Indicator
             else
             {
                 var rs = sumGain / sumLoss;
-                rsi = 100.0 - (100.0 / (1.0 + rs));
+                rsi = 100.0 - 100.0 / (1.0 + rs);
             }
 
             result[i] = new RsiResult

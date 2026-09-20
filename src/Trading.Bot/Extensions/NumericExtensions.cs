@@ -285,7 +285,7 @@ public static class NumericExtensions
             dy += vy * vy;
         }
 
-        return num / Math.Sqrt(dx * dy);
+        return dx == 0 || dy == 0 ? 0.0 : num / Math.Sqrt(dx * dy);
     }
     
     public static (double Beta, double Variance) CalcKalmanBeta(

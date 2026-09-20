@@ -244,6 +244,14 @@ public class TradeManager : BackgroundService
             ? instrument.PipLocation
             : 1;
 
+        if (price.HomeConversion == 0)
+        {
+            _logger.LogWarning("Cannot calculate trade units for {Instrument}, no home conversion rate available",
+                settings.Instrument);
+
+            return 0;
+        }
+
         var numPips = indicator.Loss / pipLocation;
 
         var perPipLoss = _tradeConfiguration.TradeRisk / numPips;

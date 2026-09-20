@@ -167,6 +167,14 @@ public class PairsTradeManager : BackgroundService
             return;
         }
 
+        if (candles[0].Length != candles[1].Length)
+        {
+            _logger.LogWarning(
+                "Not placing a trade for {Pairs}, candle counts do not match between legs ({CountA} vs {CountB})",
+                _instrumentNames, candles[0].Length, candles[1].Length);
+            return;
+        }
+
         var calcResult = candles[0].CalcKalmanFilteredReturnSpread(candles[1], window).Last();
 
         var allOpenTrades = await _apiService.GetOpenTrades();

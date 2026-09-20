@@ -28,7 +28,7 @@ public static class CandlePatternExtensions
     {
         if (candle is null) return false;
 
-        return candle.BodyTopPercentage < ShootingStarHeight &&
+        return candle.BodyTopPercentage > ShootingStarHeight &&
                candle.BodyPercentage < HangingManBody;
     }
 
@@ -130,7 +130,7 @@ public static class CandlePatternExtensions
 
         for (var i = 1; i < length; i++)
         {
-            if (!IsSwingLow(candles, i) || !(candles[i].Mid_H < latestHigh)) continue;
+            if (!IsSwingHigh(candles, i) || !(candles[i].Mid_H < latestHigh)) continue;
 
             latestHigh = candles[i].Mid_H;
 
@@ -150,7 +150,7 @@ public static class CandlePatternExtensions
 
         for (var i = 1; i < length; i++)
         {
-            if (!IsSwingHigh(candles, i) || !(candles[i].Mid_L > latestLow)) continue;
+            if (!IsSwingLow(candles, i) || !(candles[i].Mid_L > latestLow)) continue;
 
             latestLow = candles[i].Mid_L;
 

@@ -40,7 +40,7 @@ public class CandlePatternExtensionsTests
     [Fact]
     public void IsShootingStar_LongUpperWickSmallBody_ReturnsTrue()
     {
-        var candle = new Candle { BodyTopPercentage = 70, BodyPercentage = 10 };
+        var candle = new Candle { BodyTopPercentage = 80, BodyPercentage = 10 };
 
         Assert.True(candle.IsShootingStar());
     }
@@ -48,7 +48,7 @@ public class CandlePatternExtensionsTests
     [Fact]
     public void IsShootingStar_ShortUpperWick_ReturnsFalse()
     {
-        var candle = new Candle { BodyTopPercentage = 80, BodyPercentage = 10 };
+        var candle = new Candle { BodyTopPercentage = 70, BodyPercentage = 10 };
 
         Assert.False(candle.IsShootingStar());
     }
@@ -265,41 +265,33 @@ public class CandlePatternExtensionsTests
     }
 
     [Fact]
-    public void LowerHighs_MultipleDescendingSwingLows_ReturnsTrue()
+    public void LowerHighs_MultipleDescendingSwingHighs_ReturnsTrue()
     {
-        var candles = CreateCandles(
-            midHighs: [20, 15, 999, 10, 999, 999, 999],
-            midLows: [10, 5, 12, 3, 8, 9, 9]);
+        var candles = CreateCandles(midHighs: [100, 10, 90, 5, 70, 5, 100]);
 
         Assert.True(candles.LowerHighs());
     }
 
     [Fact]
-    public void LowerHighs_SingleQualifyingSwingLow_ReturnsFalse()
+    public void LowerHighs_SingleQualifyingSwingHigh_ReturnsFalse()
     {
-        var candles = CreateCandles(
-            midHighs: [20, 15, 999, 20, 999, 999, 999],
-            midLows: [10, 5, 12, 3, 8, 9, 9]);
+        var candles = CreateCandles(midHighs: [100, 10, 90, 5, 95, 5, 100]);
 
         Assert.False(candles.LowerHighs());
     }
 
     [Fact]
-    public void HigherLows_MultipleAscendingSwingHighs_ReturnsTrue()
+    public void HigherLows_MultipleAscendingSwingLows_ReturnsTrue()
     {
-        var candles = CreateCandles(
-            midHighs: [10, 15, 8, 20, 12, 5, 5],
-            midLows: [1, 5, 3, 9, 3, 3, 3]);
+        var candles = CreateCandles(midLows: [-100, 90, 10, 95, 20, 95, -100]);
 
         Assert.True(candles.HigherLows());
     }
 
     [Fact]
-    public void HigherLows_SingleQualifyingSwingHigh_ReturnsFalse()
+    public void HigherLows_SingleQualifyingSwingLow_ReturnsFalse()
     {
-        var candles = CreateCandles(
-            midHighs: [10, 15, 8, 20, 12, 5, 5],
-            midLows: [1, 5, 3, 4, 3, 3, 3]);
+        var candles = CreateCandles(midLows: [-100, 90, 10, 95, 5, 95, -100]);
 
         Assert.False(candles.HigherLows());
     }

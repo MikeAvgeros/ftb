@@ -29,8 +29,6 @@ public static partial class Indicator
         var maxHead = 0; var maxTail = 0;
         
         var minHead = 0; var minTail = 0;
-        
-        var rsiWarmupIndex = rsiWindow - 1; 
 
         for (var i = 0; i < length; i++)
         {
@@ -38,7 +36,7 @@ public static partial class Indicator
             
             var value = rsi[i];
             
-            if (i < rsiWarmupIndex)
+            if (i < rsiWindow)
             {
                 result[i].KOscillator = 0.0;
                 
@@ -63,7 +61,7 @@ public static partial class Indicator
             
             while (minDeque[minHead] <= i - stochWindow) { minHead++; }
             
-            if (i < rsiWarmupIndex + stochWindow - 1)
+            if (i < rsiWindow + stochWindow - 1)
             {
                 result[i].KOscillator = 0.0;
                 
@@ -92,7 +90,7 @@ public static partial class Indicator
 
             for (var i = 0; i < length; i++)
             {
-                var kWarmupBoundary = rsiWarmupIndex + (stochWindow - 1) + (smoothK - 1);
+                var kWarmupBoundary = rsiWindow + (stochWindow - 1) + (smoothK - 1);
                 
                 result[i].KOscillator = i < kWarmupBoundary ? 0.0 : smaK[i];
             }
@@ -107,7 +105,7 @@ public static partial class Indicator
 
         var smaD = oscillators.CalcSma(smoothD);
 
-        var kWarmup = rsiWarmupIndex + (stochWindow - 1) + (smoothK > 1 ? (smoothK - 1) : 0);
+        var kWarmup = rsiWindow + (stochWindow - 1) + (smoothK > 1 ? (smoothK - 1) : 0);
 
         var totalSystemWarmup = kWarmup + (smoothD - 1);
 

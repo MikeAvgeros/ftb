@@ -29,7 +29,7 @@ public static partial class Indicator
             
             var isTrendingDown = emaDiff < -0.0001;
             
-            var pricesHistory = prices.Take(i).TakeLast(zScoreWindow).ToArray();
+            var pricesHistory = prices.Take(i + 1).TakeLast(zScoreWindow).ToArray();
             
             var zScore = pricesHistory.CalcZScore();
             
