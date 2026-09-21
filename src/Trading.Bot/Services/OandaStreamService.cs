@@ -85,6 +85,11 @@ public class OandaStreamService(
         
         buffer = buffer.Slice(buffer.GetPosition(1, newlinePos.Value));
         
+        if (!line.IsEmpty && line.Slice(line.Length - 1, 1).FirstSpan[0] == (byte)'\r')
+        {
+            line = line.Slice(0, line.Length - 1);
+        }
+        
         return true;
     }
 
@@ -92,29 +97,7 @@ public class OandaStreamService(
     {
         try
         {
-            PriceResponse price;
-
-            if (line.IsSingleSegment)
-            {
-                price = JsonSerializer.Deserialize<PriceResponse>(
-                    line.FirstSpan.TrimEnd((byte)'\r'), JsonOptions);
-            }
-            else
-            {
-                var rentedBuffer = ArrayPool<byte>.Shared.Rent((int)line.Length);
-                
-                try
-                {
-                    line.CopyTo(rentedBuffer);
-                    
-                    price = JsonSerializer.Deserialize<PriceResponse>(
-                        rentedBuffer.AsSpan(0, (int)line.Length).TrimEnd((byte)'\r'), JsonOptions);
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(rentedBuffer);
-                }
-            }
+            var price = DeserializePrice(line);
 
             if (price is null || price.Type != "PRICE") return;
 
@@ -126,6 +109,31 @@ public class OandaStreamService(
         catch (JsonException ex)
         {
             logger.LogWarning(ex, "Discarding malformed price message, stream continues");
+        }
+    }
+    
+    private static PriceResponse DeserializePrice(ReadOnlySequence<byte> line)
+    {
+        if (line.IsSingleSegment)
+        {
+            return JsonSerializer.Deserialize<PriceResponse>(
+                line.FirstSpan, JsonOptions);
+        }
+        
+        var length = checked((int)line.Length);
+
+        var rentedBuffer = ArrayPool<byte>.Shared.Rent(length);
+
+        try
+        {
+            line.CopyTo(rentedBuffer);
+
+            return JsonSerializer.Deserialize<PriceResponse>(
+                rentedBuffer.AsSpan(0, length), JsonOptions);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rentedBuffer);
         }
     }
 }
